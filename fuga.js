@@ -1,4 +1,13 @@
 // =======================================================
+// IMPORTANT: GLOBAL MEYDA CHECK (for debugging script loading)
+// We will now perform this check inside DOMContentLoaded to avoid race conditions.
+// =======================================================
+
+// This will hold the correct function to create a Meyda analyzer.
+// It's in the global script scope so it can be set by DOMContentLoaded and used by startPitchDetection.
+let meydaFactoryFunction = null;
+
+// =======================================================
 // Musical Constants
 // =======================================================
 const A4_FREQ = 440;
@@ -61,9 +70,8 @@ let isPlaying = false; // For recognition mode
 
 // Production Mode State
 let isProductionMode = false;
-let isListening = false;
+let isListening = false; // Track microphone state
 let productionChallengeIntervalSemitones = 0;
-let detectedPitches = []; // Stores the two pitches played by the user
 let userMelodyPlayback = []; // Stores the frequencies to play back the user's detected melody
 
 // =======================================================
@@ -71,8 +79,7 @@ let userMelodyPlayback = []; // Stores the frequencies to play back the user's d
 // =======================================================
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 let micStream = null;
-let analyser = null;
-let meydaAnalyzer = null;
+let meydaAnalyzer = null; // Renamed from 'analyser' to be clear it's Meyda's analyzer
 
 function playNote(frequency, startTime, duration, waveform = 'sine') {
     if (audioContext.state === 'suspended') {
@@ -107,7 +114,8 @@ function getRandomIntervalInSemitones() {
  * @returns {number} The absolute difference in semitones.
  */
 function calculateSemitoneDifference(freq1, freq2) {
-    if (freq1 <= 0 || freq2 <= 0) return 0; // Avoid log(0)
+    if (freq1 <= 0 || freq2 <= 0) return 0; // Avoid log(0) and division by zero
+    // Using Math.abs for absolute difference in semitones regardless of order
     return 12 * Math.abs(Math.log2(freq2 / freq1));
 }
 
@@ -135,7 +143,7 @@ function areFrequenciesInTune(freq1, freq2, toleranceCents) {
 }
 
 // =======================================================
-// UI Elements and Event Listeners
+// UI Elements and Event Listeners (DOM References)
 // =======================================================
 
 // Recognition Mode elements
@@ -167,55 +175,96 @@ function populateIntervalDropdown() {
         userGuessSelect.appendChild(option);
     });
 }
-populateIntervalDropdown(); // Call this once on load
+
 
 // =======================================================
-// Meyda and Pitch Detection Setup
+// Meyda and Pitch Detection Setup (Functions)
 // =======================================================
 
 async function startPitchDetection() {
-    if (isListening) return;
+    if (isListening) {
+        console.log("Already listening. Skipping startPitchDetection.");
+        return;
+    }
+    
+    // Use the determined Meyda factory function
+    if (!meydaFactoryFunction) {
+        console.error("Meyda factory function is not available. Cannot start pitch detection.");
+        feedbackDiv.textContent = "Cannot start listening: Audio library (Meyda) not ready.";
+        feedbackDiv.className = 'wrong';
+        // Ensure any potential mic stream is stopped and state is reset
+        if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+            micStream = null;
+        }
+        isListening = false;
+        // Update buttons to reflect failure
+        startProductionChallengeButton.style.display = 'inline-block';
+        stopProductionChallengeButton.style.display = 'none';
+        resetProductionChallengeButton.style.display = 'none';
+        playUserIntervalButton.style.display = 'none';
+        return; // Exit early
+    }
 
     try {
+        feedbackDiv.textContent = 'Requesting microphone access...';
+        feedbackDiv.className = '';
+        console.log("1. startPitchDetection called.");
+
+        // Resume audio context if suspended (needed for some browsers and initial user interaction)
+        if (audioContext.state === 'suspended') {
+            console.log("2. AudioContext suspended, attempting to resume...");
+            try {
+                await audioContext.resume();
+                console.log("3. AudioContext resumed.");
+            } catch (resumeErr) {
+                console.error("Error resuming AudioContext:", resumeErr);
+                feedbackDiv.textContent = "Error resuming audio. Please refresh and try again.";
+                feedbackDiv.className = 'wrong';
+                // Important: if AudioContext fails to resume, we must ensure we don't proceed
+                isListening = false; // Ensure state is correct
+                return; // Stop execution here
+            }
+        } else {
+            console.log("2. AudioContext is already running.");
+        }
+
+        // Request microphone access
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioContext.createMediaStreamSource(micStream);
+        console.log("4. Microphone access granted, MediaStreamSource created.");
 
         // Meyda Analyzer setup
         if (meydaAnalyzer) {
             meydaAnalyzer.stop();
             meydaAnalyzer = null;
+            console.log("5. Existing Meyda analyzer stopped and cleared.");
         }
 
-        meydaAnalyzer = Meyda.createAnalyzer({
+        meydaAnalyzer = meydaFactoryFunction({
             audioContext: audioContext,
             source: source,
-            bufferSize: 2048, // A common buffer size, can be adjusted
-            featureExtractors: ['chroma', 'perceptualSpread', 'pitch'], // 'pitch' is the one we primarily need
+            bufferSize: 2048,
+            // The correct feature extractor for pitch is 'yin'. The callback receives an object with a 'pitch' property.
+            featureExtractors: ['yin'],
             callback: features => {
-                if (features.pitch) {
+                // The feature is 'yin', but the result is conveniently placed in 'features.pitch'
+                if (isListening && features.pitch && features.pitch > 50) { // Filter out very low, potentially noisy frequencies
                     const detectedFreq = features.pitch;
                     pitchDisplaySpan.textContent = `${detectedFreq.toFixed(2)} Hz`;
 
-                    // Only record pitches when a challenge is active and we have less than 2
-                    if (isListening && detectedPitches.length < 2) {
-                        // Simple logic: if pitch is stable for a bit, record it.
-                        // This needs refinement for a real app (e.g., threshold, duration)
-                        // For now, let's just push it and then refine later.
-                        // A more robust approach would involve debouncing or
-                        // checking for sustained pitch above a certain amplitude.
-
-                        // For demonstration, let's just record if a valid pitch is detected
-                        // and it's sufficiently different from the last one (to avoid duplicates from holding a note)
-                        if (detectedFreq > 50) { // Filter out very low, potentially noisy frequencies
-                            const lastPitch = userMelodyPlayback[userMelodyPlayback.length - 1];
-                            const minDiffForNewNote = 100; // Hz difference to consider it a new note
-                            if (!lastPitch || Math.abs(detectedFreq - lastPitch) > minDiffForNewNote) {
-                                userMelodyPlayback.push(detectedFreq);
-                                console.log("Detected a pitch:", detectedFreq.toFixed(2));
-                                if (userMelodyPlayback.length === 2) {
-                                    stopPitchDetection(); // Stop after two notes
-                                    evaluateProductionChallenge();
-                                }
+                    // Logic to record the two notes for the interval
+                    if (userMelodyPlayback.length < 2) {
+                        const lastPitch = userMelodyPlayback[userMelodyPlayback.length - 1];
+                        const minDiffForNewNote = 100; // Hz difference to consider it a new note
+                        
+                        if (!lastPitch || Math.abs(detectedFreq - lastPitch) > minDiffForNewNote) {
+                            userMelodyPlayback.push(detectedFreq);
+                            console.log(`Detected a pitch #${userMelodyPlayback.length}:`, detectedFreq.toFixed(2));
+                            if (userMelodyPlayback.length === 2) {
+                                console.log("Two pitches detected. Stopping listening.");
+                                stopPitchDetection();
+                                evaluateProductionChallenge();
                             }
                         }
                     }
@@ -224,48 +273,88 @@ async function startPitchDetection() {
                 }
             }
         });
+        console.log("6. Meyda analyzer created.");
+
+        if (!meydaAnalyzer) {
+            console.error("Meyda factory function returned null. Cannot start analyzer.");
+            feedbackDiv.textContent = "Error initializing audio analyzer. Please check browser console for details.";
+            feedbackDiv.className = 'wrong';
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+            }
+            isListening = false;
+            startProductionChallengeButton.style.display = 'inline-block';
+            stopProductionChallengeButton.style.display = 'none';
+            resetProductionChallengeButton.style.display = 'none';
+            playUserIntervalButton.style.display = 'none';
+            return;
+        }
+
 
         meydaAnalyzer.start();
         isListening = true;
+        console.log("7. Meyda analyzer started. isListening:", isListening);
+
         feedbackDiv.textContent = 'Listening for your notes...';
         feedbackDiv.className = '';
         startProductionChallengeButton.style.display = 'none';
         stopProductionChallengeButton.style.display = 'inline-block';
         resetProductionChallengeButton.style.display = 'inline-block';
-        playUserIntervalButton.style.display = 'none'; // Hide playback until notes are recorded
-        console.log("Pitch detection started.");
+        playUserIntervalButton.style.display = 'none';
 
     } catch (err) {
-        console.error("Error accessing microphone:", err);
-        feedbackDiv.textContent = "Error accessing microphone. Please allow microphone access.";
+        console.error("CRITICAL ERROR in startPitchDetection (within try block):", err); 
+        feedbackDiv.textContent = "Error during microphone setup. Please ensure access and try again.";
         feedbackDiv.className = 'wrong';
+        if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+            micStream = null;
+        }
+        isListening = false;
         stopPitchDetection();
     }
 }
 
 function stopPitchDetection() {
+    console.log("stopPitchDetection called. isListening was:", isListening);
+    if (!isListening && !micStream && !meydaAnalyzer) { 
+        console.log("Not currently listening and no active components. Skipping stopPitchDetection cleanup.");
+        return;
+    }
+    
     if (meydaAnalyzer) {
         meydaAnalyzer.stop();
         meydaAnalyzer = null;
+        console.log("Meyda analyzer stopped.");
     }
     if (micStream) {
         micStream.getTracks().forEach(track => track.stop());
         micStream = null;
+        console.log("Microphone stream stopped.");
     }
     isListening = false;
+    console.log("Pitch detection stopped. isListening is now:", isListening);
+
     feedbackDiv.textContent = 'Microphone stopped.';
     startProductionChallengeButton.style.display = 'inline-block';
     stopProductionChallengeButton.style.display = 'none';
-    // Keep reset visible if there were notes played
-    if (userMelodyPlayback.length > 0) {
+    
+    if (userMelodyPlayback.length === 0) {
+        resetProductionChallengeButton.style.display = 'none';
+        playUserIntervalButton.style.display = 'none';
+    } else {
+        resetProductionChallengeButton.style.display = 'inline-block';
         playUserIntervalButton.style.display = 'inline-block';
     }
-    console.log("Pitch detection stopped.");
 }
 
 function resetProductionChallenge() {
-    stopPitchDetection();
-    detectedPitches = [];
+    console.log("Production challenge reset initiated.");
+    if (isListening) {
+        stopPitchDetection();
+    }
+    
     userMelodyPlayback = [];
     productionChallengeIntervalSemitones = 0;
     challengeDisplaySpan.textContent = '';
@@ -276,16 +365,18 @@ function resetProductionChallenge() {
     stopProductionChallengeButton.style.display = 'none';
     resetProductionChallengeButton.style.display = 'none';
     playUserIntervalButton.style.display = 'none';
-    console.log("Production challenge reset.");
+    console.log("Production challenge reset completed.");
+    startProductionChallengeButton.textContent = 'Start Listening';
 }
 
 function startNewProductionChallenge() {
-    resetProductionChallenge(); // Clear previous state
+    console.log("Starting new production challenge.");
+    resetProductionChallenge();
     productionChallengeIntervalSemitones = getRandomIntervalInSemitones();
     challengeDisplaySpan.textContent = intervalNames[productionChallengeIntervalSemitones];
     feedbackDiv.textContent = `Play a ${intervalNames[productionChallengeIntervalSemitones]} (melodically).`;
     feedbackDiv.className = '';
-    startProductionChallengeButton.textContent = 'Start Listening'; // Change text for subsequent challenges
+    startProductionChallengeButton.textContent = 'Start Listening';
 }
 
 function evaluateProductionChallenge() {
@@ -298,10 +389,7 @@ function evaluateProductionChallenge() {
     const firstNoteFreq = userMelodyPlayback[0];
     const secondNoteFreq = userMelodyPlayback[1];
 
-    // Calculate the semitone difference (absolute value)
     const playedSemitones = calculateSemitoneDifference(firstNoteFreq, secondNoteFreq);
-
-    // Round to the nearest whole semitone for comparison
     const roundedPlayedSemitones = Math.round(playedSemitones);
 
     console.log(`User played notes: ${firstNoteFreq.toFixed(2)} Hz and ${secondNoteFreq.toFixed(2)} Hz`);
@@ -309,8 +397,6 @@ function evaluateProductionChallenge() {
     console.log(`Challenge semitones: ${productionChallengeIntervalSemitones}`);
 
     if (roundedPlayedSemitones === productionChallengeIntervalSemitones) {
-        // Also check if the notes themselves are reasonably in tune to a standard pitch (optional but good)
-        // For simplicity, let's just check the interval match for now.
         feedbackDiv.textContent = `CORRECT! You played a ${intervalNames[productionChallengeIntervalSemitones]}.`;
         feedbackDiv.className = 'correct';
     } else {
@@ -319,9 +405,8 @@ function evaluateProductionChallenge() {
         feedbackDiv.className = 'wrong';
     }
 
-    // After evaluation, enable playing back the user's interval
     playUserIntervalButton.style.display = 'inline-block';
-    startProductionChallengeButton.textContent = 'Start New Challenge'; // Ready for next challenge
+    startProductionChallengeButton.textContent = 'Start New Challenge';
 }
 
 function playUserPlayedInterval() {
@@ -342,7 +427,7 @@ function playUserPlayedInterval() {
     feedbackDiv.className = '';
 
     setTimeout(() => {
-        feedbackDiv.textContent = "Playback finished.";
+        feedbackDiv.textContent = '';
     }, intervalPlayDuration * 1000);
 }
 
@@ -351,7 +436,6 @@ function playUserPlayedInterval() {
 // Event Listeners (UI Logic)
 // =======================================================
 
-// Mode Toggle Button
 toggleModeButton.addEventListener('click', () => {
     isProductionMode = !isProductionMode;
     if (isProductionMode) {
@@ -359,23 +443,20 @@ toggleModeButton.addEventListener('click', () => {
         productionModeDiv.classList.add('active');
         modeDescriptionP.textContent = 'Produce the challenge interval.';
         toggleModeButton.textContent = 'Switch to Recognition Mode';
-        // When switching to production mode, automatically start a challenge
         startNewProductionChallenge();
     } else {
-        // Stop listening if we switch out of production mode
         stopPitchDetection();
-        resetProductionChallenge(); // Clear production specific state
+        resetProductionChallenge();
         recognitionModeDiv.classList.add('active');
         productionModeDiv.classList.remove('active');
         modeDescriptionP.textContent = 'Guess the interval.';
         toggleModeButton.textContent = 'Switch to Production Mode';
     }
-    feedbackDiv.textContent = ''; // Clear feedback when switching modes
+    feedbackDiv.textContent = '';
     feedbackDiv.className = '';
 });
 
 
-// Recognition Mode Event Listeners (existing)
 playButton.addEventListener('click', () => {
     if (isPlaying) return;
 
@@ -414,8 +495,8 @@ playButton.addEventListener('click', () => {
 });
 
 submitGuessButton.addEventListener('click', () => {
-    const userSelectedSemitones = parseInt(userGuessSelect.value, 10);
-
+    const userSelectedSemitones = parseInt(userGuessSelect.value, 10); 
+    
     if (isNaN(userSelectedSemitones)) {
         feedbackDiv.textContent = "Please select an interval from the list.";
         feedbackDiv.className = 'wrong';
@@ -435,8 +516,52 @@ submitGuessButton.addEventListener('click', () => {
 // Production Mode Event Listeners (new)
 startProductionChallengeButton.addEventListener('click', startPitchDetection);
 stopProductionChallengeButton.addEventListener('click', stopPitchDetection);
-resetProductionChallengeButton.addEventListener('click', startNewProductionChallenge); // Use startNewChallenge to reset and get a new one
+resetProductionChallengeButton.addEventListener('click', startNewProductionChallenge);
 playUserIntervalButton.addEventListener('click', playUserPlayedInterval);
 
 
-console.log("Fuga script loaded. Click 'Play Random Interval' to hear something!");
+// Initial setup when the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', () => {
+    // --- THIS IS THE FINAL, RELIABLE MEYDA CHECK ---
+    if (typeof Meyda === 'undefined') {
+        console.error("Meyda is UNDEFINED on DOMContentLoaded.");
+    } else if (typeof Meyda.createMeydaAnalyzer === 'function') {
+        // --- THE FIX IS HERE ---
+        // We bind the function to its original 'Meyda' object to preserve the 'this' context.
+        // This ensures the function can find 'this.featureExtractors' when it runs.
+        console.log("Meyda with .createMeydaAnalyzer found. Binding context and assigning to factory function.");
+        meydaFactoryFunction = Meyda.createMeydaAnalyzer.bind(Meyda);
+    } else {
+        console.error("Meyda is defined but in an unexpected structure on DOMContentLoaded. (Type: " + typeof Meyda + ")");
+        console.log("Inspecting Meyda object:", Meyda);
+    }
+
+    // Now, disable UI elements if Meyda was not found in a usable form.
+    if (meydaFactoryFunction === null) {
+        console.error("Meyda library could not be initialized. Disabling audio features.");
+        const feedbackDiv = document.getElementById('feedback');
+        if (feedbackDiv) {
+            feedbackDiv.textContent = "FATAL ERROR: Audio library (Meyda) failed to load. Please check console.";
+            feedbackDiv.className = 'wrong';
+        }
+        const toggleButton = document.getElementById('toggleModeButton');
+        if (toggleButton) toggleButton.disabled = true;
+        const startButton = document.getElementById('startProductionChallengeButton');
+        if (startButton) startButton.disabled = true;
+    } else {
+        console.log("Meyda factory function identified successfully. App is ready.");
+    }
+
+    populateIntervalDropdown(); 
+
+    stopProductionChallengeButton.style.display = 'none';
+    resetProductionChallengeButton.style.display = 'none';
+    playUserIntervalButton.style.display = 'none';
+    
+    recognitionModeDiv.classList.add('active');
+    productionModeDiv.classList.remove('active');
+    toggleModeButton.textContent = 'Switch to Production Mode';
+    modeDescriptionP.textContent = 'Guess the interval.';
+
+    console.log("Fuga script loaded and DOM is ready!");
+});
