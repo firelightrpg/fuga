@@ -53,10 +53,14 @@ let micStream = null;
 let analyserNode = null;
 let animationFrameId = null;
 
-// --- State for note stability detection ---
+// --- State for note stability & separation ---
 let pitchCandidate = null;
 let pitchConfidence = 0;
-const REQUIRED_CONFIDENCE = 5; // Require 5 consecutive frames of a stable pitch
+let hasBeenSilentAfterFirstNote = false;
+let pitchBuffer = [];
+const REQUIRED_CONFIDENCE = 5; 
+const CLARITY_THRESHOLD = 0.9;
+const PITCH_WINDOW_SEMITONES = 0.5;
 
 // =======================================================
 // Core Functions
@@ -87,53 +91,51 @@ function calculateSemitoneDifference(freq1, freq2) {
     return 12 * Math.abs(Math.log2(freq2 / freq1));
 }
 
-// --- PITCH DETECTION LOGIC (with stabilization) ---
 function updatePitch(detector, input, sampleRate) {
-    if (!isListening) return; // Stop the loop if we're not listening
+    if (!isListening) return;
 
     analyserNode.getFloatTimeDomainData(input);
     const [pitch, clarity] = detector.findPitch(input, sampleRate);
     
-    // Check for a clear, audible pitch
-    if (clarity > 0.95 && pitch > 50) {
+    if (userMelodyPlayback.length === 1 && clarity < CLARITY_THRESHOLD) {
+        hasBeenSilentAfterFirstNote = true;
+    }
+
+    if (clarity > CLARITY_THRESHOLD && pitch > 50) {
         pitchDisplaySpan.textContent = `${pitch.toFixed(2)} Hz`;
 
-        // Is this pitch close to our current candidate? (within a quarter-tone)
-        if (pitchCandidate && Math.abs(calculateSemitoneDifference(pitch, pitchCandidate)) < 0.25) {
+        if (pitchCandidate && Math.abs(calculateSemitoneDifference(pitch, pitchCandidate)) < PITCH_WINDOW_SEMITONES) {
             pitchConfidence++;
+            pitchBuffer.push(pitch);
         } else {
-            // New pitch, reset confidence
             pitchCandidate = pitch;
             pitchConfidence = 1;
+            pitchBuffer = [pitch];
         }
 
-        // Have we held the note long enough?
         if (pitchConfidence === REQUIRED_CONFIDENCE) {
-            const newStablePitch = pitchCandidate;
-            const lastRecordedPitch = userMelodyPlayback[userMelodyPlayback.length - 1];
-
-            // Record it if it's the first note, or if it's different from the last recorded note
-            if (!lastRecordedPitch || Math.abs(calculateSemitoneDifference(newStablePitch, lastRecordedPitch)) > 0.8) {
-                userMelodyPlayback.push(newStablePitch);
-
-                // Check if we have our interval
-                if (userMelodyPlayback.length === 2) {
-                    stopPitchDetection();
-                    evaluateProductionChallenge();
-                    return; // End the detection loop
-                }
+            const averagePitch = pitchBuffer.reduce((a, b) => a + b, 0) / pitchBuffer.length;
+            
+            if (userMelodyPlayback.length === 0) {
+                userMelodyPlayback.push(averagePitch);
+            } 
+            else if (userMelodyPlayback.length === 1 && hasBeenSilentAfterFirstNote) {
+                userMelodyPlayback.push(averagePitch);
+                stopPitchDetection();
+                evaluateProductionChallenge();
+                return; 
             }
+            pitchConfidence = 0; 
         }
     } else {
-        // No clear pitch, reset everything
         pitchDisplaySpan.textContent = `-- Hz`;
         pitchCandidate = null;
         pitchConfidence = 0;
+        pitchBuffer = [];
     }
     
     animationFrameId = requestAnimationFrame(() => updatePitch(detector, input, sampleRate));
 }
-
 
 async function startPitchDetection() {
     if (isListening) return;
@@ -141,10 +143,11 @@ async function startPitchDetection() {
         feedbackDiv.textContent = 'Requesting microphone access...';
         if (audioContext.state === 'suspended') await audioContext.resume();
 
-        // Reset stability state for a new attempt
         userMelodyPlayback = [];
         pitchCandidate = null;
         pitchConfidence = 0;
+        hasBeenSilentAfterFirstNote = false;
+        pitchBuffer = [];
         
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioContext.createMediaStreamSource(micStream);
@@ -191,12 +194,12 @@ function stopPitchDetection() {
     feedbackDiv.textContent = 'Microphone stopped.';
     startProductionChallengeButton.style.display = 'inline-block';
     stopProductionChallengeButton.style.display = 'none';
-    if (userMelodyPlayback.length === 0) {
+    if (userMelodyPlayback.length < 1) { 
         resetProductionChallengeButton.style.display = 'none';
         playUserIntervalButton.style.display = 'none';
     } else {
         resetProductionChallengeButton.style.display = 'inline-block';
-        playUserIntervalButton.style.display = 'inline-block';
+        playUserIntervalButton.style.display = userMelodyPlayback.length === 2 ? 'inline-block' : 'none';
     }
 }
 
@@ -219,7 +222,7 @@ function startNewProductionChallenge() {
     resetProductionChallenge();
     productionChallengeIntervalSemitones = getRandomIntervalInSemitones();
     challengeDisplaySpan.textContent = intervalNames[productionChallengeIntervalSemitones];
-    feedbackDiv.textContent = `Play a ${intervalNames[productionChallengeIntervalSemitones]} (melodically).`;
+    feedbackDiv.textContent = `Perform a ${intervalNames[productionChallengeIntervalSemitones]}.`;
 }
 
 function evaluateProductionChallenge() {
@@ -227,15 +230,15 @@ function evaluateProductionChallenge() {
     const playedSemitones = calculateSemitoneDifference(userMelodyPlayback[0], userMelodyPlayback[1]);
     const roundedPlayedSemitones = Math.round(playedSemitones);
     if (roundedPlayedSemitones === productionChallengeIntervalSemitones) {
-        feedbackDiv.textContent = `CORRECT! You played a ${intervalNames[productionChallengeIntervalSemitones]}.`;
+        feedbackDiv.textContent = `CORRECT! You performed a ${intervalNames[productionChallengeIntervalSemitones]}.`;
         feedbackDiv.className = 'correct';
     } else {
         const playedIntervalName = intervalNames[roundedPlayedSemitones] || `an unknown interval`;
-        feedbackDiv.textContent = `WRONG. You played ${playedIntervalName}. The challenge was a ${intervalNames[productionChallengeIntervalSemitones]}.`;
+        feedbackDiv.textContent = `WRONG. You performed ${playedIntervalName}. The challenge was a ${intervalNames[productionChallengeIntervalSemitones]}.`;
         feedbackDiv.className = 'wrong';
     }
     playUserIntervalButton.style.display = 'inline-block';
-    startProductionChallengeButton.textContent = 'Start New Challenge';
+    startProductionChallengeButton.textContent = 'Repeat This Interval';
 }
 
 function playUserPlayedInterval() {
@@ -253,16 +256,16 @@ toggleModeButton.addEventListener('click', () => {
     if (isProductionMode) {
         recognitionModeDiv.classList.remove('active');
         productionModeDiv.classList.add('active');
-        modeDescriptionP.textContent = 'Produce the challenge interval.';
-        toggleModeButton.textContent = 'Switch to Recognition Mode';
+        modeDescriptionP.textContent = 'I will give you an interval. You perform it.';
+        toggleModeButton.textContent = 'Switch to Guessing Mode';
         startNewProductionChallenge();
     } else {
         stopPitchDetection();
         resetProductionChallenge();
         recognitionModeDiv.classList.add('active');
         productionModeDiv.classList.remove('active');
-        modeDescriptionP.textContent = 'Guess the interval.';
-        toggleModeButton.textContent = 'Switch to Production Mode';
+        modeDescriptionP.textContent = 'I will play an interval. You guess it.';
+        toggleModeButton.textContent = 'Switch to Perform Mode';
     }
     feedbackDiv.textContent = '';
     feedbackDiv.className = '';
@@ -278,7 +281,9 @@ playButton.addEventListener('click', () => {
     currentCorrectIntervalSemitones = intervalSemitones;
     currentCorrectIntervalName = intervalNames[intervalSemitones];
     const intervalFreq = rootFreq * Math.pow(SEMITONE_RATIO, intervalSemitones);
-    if (Math.random() < 0.5) {
+    const playHarmonic = Math.random() < 0.5;
+
+    if (playHarmonic) {
         playNote(rootFreq, now, 1.6);
         playNote(intervalFreq, now, 1.6);
     } else {
@@ -306,7 +311,7 @@ submitGuessButton.addEventListener('click', () => {
 
 startProductionChallengeButton.addEventListener('click', startPitchDetection);
 stopProductionChallengeButton.addEventListener('click', stopPitchDetection);
-resetProductionChallengeButton.addEventListener('click', startNewProductionChallenge);
+resetProductionChallengeButton.addEventListener('click', startNewProductionChallenge); // "Next Interval" button
 playUserIntervalButton.addEventListener('click', playUserPlayedInterval);
 
 // =======================================================
@@ -327,5 +332,5 @@ resetProductionChallengeButton.style.display = 'none';
 playUserIntervalButton.style.display = 'none';
 recognitionModeDiv.classList.add('active');
 productionModeDiv.classList.remove('active');
-modeDescriptionP.textContent = 'Guess the interval.';
-toggleModeButton.textContent = 'Switch to Production Mode';
+modeDescriptionP.textContent = 'I will play an interval. You guess it.';
+toggleModeButton.textContent = 'Switch to Perform Mode';
