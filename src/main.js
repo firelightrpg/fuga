@@ -51,7 +51,12 @@ let userMelodyPlayback = [];
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 let micStream = null;
 let analyserNode = null;
-let animationFrameId = null; // To control the detection loop
+let animationFrameId = null;
+
+// --- State for note stability detection ---
+let pitchCandidate = null;
+let pitchConfidence = 0;
+const REQUIRED_CONFIDENCE = 5; // Require 5 consecutive frames of a stable pitch
 
 // =======================================================
 // Core Functions
@@ -82,35 +87,51 @@ function calculateSemitoneDifference(freq1, freq2) {
     return 12 * Math.abs(Math.log2(freq2 / freq1));
 }
 
-// --- PITCH DETECTION LOGIC (using pitchy) ---
+// --- PITCH DETECTION LOGIC (with stabilization) ---
 function updatePitch(detector, input, sampleRate) {
+    if (!isListening) return; // Stop the loop if we're not listening
+
+    analyserNode.getFloatTimeDomainData(input);
     const [pitch, clarity] = detector.findPitch(input, sampleRate);
     
-    if (clarity > 0.95 && pitch > 50) { // Clarity threshold to filter noise
-        const detectedFreq = pitch;
-        pitchDisplaySpan.textContent = `${detectedFreq.toFixed(2)} Hz`;
+    // Check for a clear, audible pitch
+    if (clarity > 0.95 && pitch > 50) {
+        pitchDisplaySpan.textContent = `${pitch.toFixed(2)} Hz`;
 
-        if (userMelodyPlayback.length < 2) {
-            const lastPitch = userMelodyPlayback[userMelodyPlayback.length - 1];
-            // Use a semitone difference to register a new note, which is more musical
-            if (!lastPitch || Math.abs(calculateSemitoneDifference(detectedFreq, lastPitch)) > 0.8) {
-                userMelodyPlayback.push(detectedFreq);
+        // Is this pitch close to our current candidate? (within a quarter-tone)
+        if (pitchCandidate && Math.abs(calculateSemitoneDifference(pitch, pitchCandidate)) < 0.25) {
+            pitchConfidence++;
+        } else {
+            // New pitch, reset confidence
+            pitchCandidate = pitch;
+            pitchConfidence = 1;
+        }
+
+        // Have we held the note long enough?
+        if (pitchConfidence === REQUIRED_CONFIDENCE) {
+            const newStablePitch = pitchCandidate;
+            const lastRecordedPitch = userMelodyPlayback[userMelodyPlayback.length - 1];
+
+            // Record it if it's the first note, or if it's different from the last recorded note
+            if (!lastRecordedPitch || Math.abs(calculateSemitoneDifference(newStablePitch, lastRecordedPitch)) > 0.8) {
+                userMelodyPlayback.push(newStablePitch);
+
+                // Check if we have our interval
                 if (userMelodyPlayback.length === 2) {
                     stopPitchDetection();
                     evaluateProductionChallenge();
+                    return; // End the detection loop
                 }
             }
         }
     } else {
+        // No clear pitch, reset everything
         pitchDisplaySpan.textContent = `-- Hz`;
+        pitchCandidate = null;
+        pitchConfidence = 0;
     }
     
-    if(isListening) {
-        animationFrameId = requestAnimationFrame(() => {
-            analyserNode.getFloatTimeDomainData(input);
-            updatePitch(detector, input, sampleRate);
-        });
-    }
+    animationFrameId = requestAnimationFrame(() => updatePitch(detector, input, sampleRate));
 }
 
 
@@ -120,18 +141,23 @@ async function startPitchDetection() {
         feedbackDiv.textContent = 'Requesting microphone access...';
         if (audioContext.state === 'suspended') await audioContext.resume();
 
+        // Reset stability state for a new attempt
+        userMelodyPlayback = [];
+        pitchCandidate = null;
+        pitchConfidence = 0;
+        
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioContext.createMediaStreamSource(micStream);
         
         analyserNode = audioContext.createAnalyser();
-        analyserNode.fftSize = 2048; // Standard FFT size for pitch detection
+        analyserNode.fftSize = 2048;
         source.connect(analyserNode);
 
         const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
         const input = new Float32Array(detector.inputLength);
         
         isListening = true;
-        updatePitch(detector, input, audioContext.sampleRate); // Start the detection loop
+        updatePitch(detector, input, audioContext.sampleRate);
 
         feedbackDiv.textContent = 'Listening for your notes...';
         feedbackDiv.className = '';
@@ -143,7 +169,7 @@ async function startPitchDetection() {
         console.error("ERROR in startPitchDetection:", err);
         feedbackDiv.textContent = "Error during microphone setup. Please ensure access and try again.";
         feedbackDiv.className = 'wrong';
-        stopPitchDetection(); // Ensure cleanup on failure
+        stopPitchDetection();
     }
 }
 
