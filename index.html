@@ -1,39 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fuga - Ear Trainer</title>
+    <title>fuga-svelte</title>
   </head>
   <body>
-    <h1>Fuga - Ear Trainer</h1>
-    <p id="modeDescription">I will play an interval. You guess it.</p>
-
-    <button id="toggleModeButton" class="toggle">Switch to Perform Mode</button>
-
-    <div id="recognitionMode" class="active">
-        <div style="margin-bottom: 20px;">
-            <button id="playIntervalButton">Play Random Interval</button>
-        </div>
-        <div>
-            <select id="userGuessSelect">
-                <option value="">-- Select your guess --</option>
-            </select>
-            <button id="submitGuessButton">Submit Answer</button>
-        </div>
-    </div>
-
-    <div id="productionMode">
-        <p>Challenge: <span id="challengeDisplay"></span></p>
-        <p>Your Pitch: <span id="pitchDisplay">-- Hz</span></p>
-        <button id="startProductionChallengeButton">Start Listening</button>
-        <button id="stopProductionChallengeButton" style="display: none;">Stop Listening</button>
-        <button id="resetProductionChallengeButton" style="display: none;">Next Interval</button>
-        <button id="playUserIntervalButton" style="display: none;">Play My Interval</button>
-    </div>
-
-    <div id="feedback"></div>
+    <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
