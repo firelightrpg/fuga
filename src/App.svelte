@@ -1,6 +1,12 @@
 <script>
   import { onMount } from 'svelte';
   import { PitchDetector } from "pitchy";
+  import Fretboard from './lib/Fretboard.svelte';
+
+  // =======================================================
+  // App-Level State
+  // =======================================================
+  let appMode = 'interval'; // 'interval' or 'fretboard'
 
   // =======================================================
   // Musical Constants
@@ -21,9 +27,9 @@
   const allIntervalSemitones = orderedIntervals.map(i => i.semitones);
 
   // =======================================================
-  // Reactive State
+  // Reactive State (for Interval Mode)
   // =======================================================
-  let isProductionMode = false;
+  let isPerformMode = false;
   let modeDescription = 'I will play an interval. You guess it.';
   let toggleButtonText = 'Switch to Perform Mode';
   let challengeText = '';
@@ -32,10 +38,6 @@
   let feedbackClass = '';
   let userGuess = '';
   
-  // Visibility flags for buttons
-  let showStopButton = false;
-  let showNextButton = false;
-  let showPlayMyIntervalButton = false;
   let startButtonText = 'Start Listening';
 
   // =======================================================
@@ -65,7 +67,7 @@
   });
 
   // =======================================================
-  // Core Functions
+  // Interval Mode Functions
   // =======================================================
   function playNote(frequency, startTime, duration, waveform = 'sine') {
     if (audioContext.state === 'suspended') {
@@ -166,9 +168,6 @@
 
       feedbackText = 'Listening for your notes...';
       feedbackClass = '';
-      showStopButton = true;
-      showNextButton = true;
-      showPlayMyIntervalButton = false;
     } catch (err) {
       console.error("ERROR in startPitchDetection:", err);
       feedbackText = "Error during microphone setup. Please ensure access and try again.";
@@ -191,16 +190,7 @@
       micStream.getTracks().forEach(track => track.stop());
       micStream = null;
     }
-
     feedbackText = 'Microphone stopped.';
-    showStopButton = false;
-    if (userMelodyPlayback.length < 1) { 
-      showNextButton = false;
-      showPlayMyIntervalButton = false;
-    } else {
-      showNextButton = true;
-      showPlayMyIntervalButton = userMelodyPlayback.length === 2;
-    }
   }
 
   function resetProductionChallenge() {
@@ -210,9 +200,6 @@
     pitchText = '-- Hz';
     feedbackText = '';
     feedbackClass = '';
-    showStopButton = false;
-    showNextButton = false;
-    showPlayMyIntervalButton = false;
     startButtonText = 'Start Listening';
   }
 
@@ -236,7 +223,6 @@
       feedbackText = `WRONG. You performed ${playedIntervalName}. The challenge was a ${intervalNames[productionChallengeIntervalSemitones]}.`;
       feedbackClass = 'wrong';
     }
-    showPlayMyIntervalButton = true;
     startButtonText = 'Repeat This Interval';
   }
 
@@ -247,15 +233,12 @@
     playNote(userMelodyPlayback[1], now + 0.9, 0.8);
   }
 
-  // =======================================================
-  // Event Handlers
-  // =======================================================
   function handleToggleMode() {
-    isProductionMode = !isProductionMode;
-    if (isProductionMode) {
+    isPerformMode = !isPerformMode;
+    if (isPerformMode) {
       modeDescription = 'I will give you an interval. You perform it.';
       toggleButtonText = 'Switch to Guessing Mode';
-      startNewProductionChallenge();
+      startNewProductionChallenge(); // THIS LINE WAS MISSING
     } else {
       stopPitchDetection();
       resetProductionChallenge();
@@ -307,43 +290,66 @@
 
 <main>
   <h1>Fuga - Ear Trainer</h1>
-  <p>{modeDescription}</p>
-
-  <button class="toggle" on:click={handleToggleMode}>{toggleButtonText}</button>
-
-  <div id="recognitionMode" class:active={!isProductionMode}>
-      <div style="margin-bottom: 20px;">
-          <button on:click={handlePlayRandomInterval}>Play Random Interval</button>
-      </div>
-      <div>
-          <select bind:value={userGuess}>
-              <option value="">-- Select your guess --</option>
-              {#each orderedIntervals as interval}
-                <option value={interval.semitones}>{interval.name}</option>
-              {/each}
-          </select>
-          <button on:click={handleSubmitGuess}>Submit Answer</button>
-      </div>
+  
+  <div class="app-mode-switcher">
+    <button class:active={appMode === 'interval'} on:click={() => appMode = 'interval'}>
+      Interval Training
+    </button>
+    <button class:active={appMode === 'fretboard'} on:click={() => appMode = 'fretboard'}>
+      Fretboard Training
+    </button>
   </div>
 
-  <div id="productionMode" class:active={isProductionMode}>
-      <p>Challenge: <span>{challengeText}</span></p>
-      <p>Your Pitch: <span>{pitchText}</span></p>
-      {#if !showStopButton}
-        <button on:click={startPitchDetection}>{startButtonText}</button>
-      {/if}
-      {#if showStopButton}
-        <button on:click={stopPitchDetection}>Stop Listening</button>
-      {/if}
-      {#if showNextButton}
-        <button on:click={startNewProductionChallenge}>Next Interval</button>
-      {/if}
-      {#if showPlayMyIntervalButton}
-        <button on:click={playUserPlayedInterval}>Play My Interval</button>
-      {/if}
-  </div>
+  {#if appMode === 'interval'}
+    <div class="module-container">
+      <p>{modeDescription}</p>
 
-  <div id="feedback" class={feedbackClass}>{feedbackText}</div>
+      <button class="toggle" on:click={handleToggleMode}>{toggleButtonText}</button>
+
+      <div class="mode-content" class:active={!isPerformMode}>
+          <div style="margin-bottom: 20px;">
+              <button on:click={handlePlayRandomInterval}>Play Random Interval</button>
+          </div>
+          <div>
+              <select bind:value={userGuess}>
+                  <option value="">-- Select your guess --</option>
+                  {#each orderedIntervals as interval}
+                    <option value={interval.semitones}>{interval.name}</option>
+                  {/each}
+              </select>
+              <button on:click={handleSubmitGuess}>Submit Answer</button>
+          </div>
+      </div>
+
+      <div class="mode-content" class:active={isPerformMode}>
+          <p>Challenge: <span>{challengeText}</span></p>
+          <p>Your Pitch: <span>{pitchText}</span></p>
+          {#if !isListening}
+            <button on:click={startPitchDetection}>{startButtonText}</button>
+          {/if}
+          {#if isListening}
+            <button on:click={stopPitchDetection}>Stop Listening</button>
+          {/if}
+          {#if !isListening && userMelodyPlayback.length > 0}
+            <button on:click={startNewProductionChallenge}>Next Interval</button>
+          {/if}
+          {#if !isListening && userMelodyPlayback.length === 2}
+            <button on:click={playUserPlayedInterval}>Play My Interval</button>
+          {/if}
+      </div>
+
+      <div class="feedback" class:correct={feedbackClass === 'correct'} class:wrong={feedbackClass === 'wrong'}>
+        {feedbackText}
+      </div>
+    </div>
+  {:else if appMode === 'fretboard'}
+    <div class="module-container">
+      <h2>Fretboard Training</h2>
+      <div class="fretboard-wrapper">
+        <Fretboard />
+      </div>
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -358,9 +364,43 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     min-height: 100vh;
+    padding-top: 2rem;
     text-align: center;
+  }
+  
+  .app-mode-switcher {
+    margin-bottom: 2rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .app-mode-switcher button {
+    margin: 0;
+    border-radius: 0;
+    background-color: #f0f0f0;
+    color: #333;
+    border: none;
+  }
+  
+  .app-mode-switcher button.active {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .module-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  .fretboard-wrapper {
+    width: 90%;
+    max-width: 800px;
+    margin: 1rem auto;
   }
 
   button, select {
@@ -397,7 +437,7 @@
     cursor: pointer;
   }
 
-  #feedback {
+  .feedback {
     margin-top: 20px;
     font-size: 1.2em;
     font-weight: bold;
@@ -405,28 +445,14 @@
 
   .correct { color: #28a745; }
   .wrong { color: #dc3545; }
-
-  #pitchDisplay {
-    margin-top: 15px;
-    font-size: 1.5em;
-    font-weight: bold;
-    color: #007bff;
-  }
-
-  #challengeDisplay {
-    margin-top: 15px;
-    font-size: 1.3em;
-    font-weight: bold;
-    color: #333;
-  }
-
-  #recognitionMode, #productionMode {
+  
+  .mode-content {
     display: none;
     flex-direction: column;
     align-items: center;
   }
 
-  #recognitionMode.active, #productionMode.active {
+  .mode-content.active {
     display: flex;
   }
 </style>

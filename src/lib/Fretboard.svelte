@@ -1,8 +1,6 @@
 <script>
-  // Number of frets to display
   export let fretCount = 12;
 
-  // Standard tuning from low E (string 6) to high E (string 1)
   const strings = [
     { name: 'e', openNote: 'E2' },
     { name: 'B', openNote: 'B2' },
@@ -13,39 +11,39 @@
   ];
 
   // --- SVG Dimensions ---
-  const width = 800;
-  const height = 150;
-  const nutWidth = 10;
-  const fretWidth = 2;
-  const stringHeight = (height - 20) / (strings.length - 1);
+  const viewboxWidth = 800;
+  const viewboxHeight = 150;
+  const nutWidth = 15;
+  const fretWireWidth = 3;
+  const stringSpacing = (viewboxHeight - 20) / (strings.length - 1);
+  const scaleLength = viewboxWidth - nutWidth; // The length available for frets
 
-  // Calculate the position of each fret
+  // --- Correct Fret Position Calculation ---
+  // The distance from the nut to fret 'n' is: scaleLength * (1 - 2^(-n/12))
   const fretPositions = Array.from({ length: fretCount + 1 }, (_, i) => {
-    if (i === 0) return nutWidth;
-    return nutWidth + (width - nutWidth) * (i / fretCount);
+    if (i === 0) return nutWidth; // Position of the nut itself
+    // Calculate the position of the fret wire
+    return nutWidth + scaleLength * (1 - Math.pow(2, -i / 12.0));
   });
 
-  // Positions for the inlay dots (3, 5, 7, 9, 12)
   const inlayFrets = [3, 5, 7, 9];
-  const doubleInlayFret = 12;
-
 </script>
 
-<svg viewBox={`0 0 ${width} ${height}`} aria-label="Guitar Fretboard">
+<svg viewBox={`0 0 ${viewboxWidth} ${viewboxHeight}`} preserveAspectRatio="xMidYMid meet" aria-label="Guitar Fretboard">
   <!-- Neck Wood -->
-  <rect x="0" y="0" width={width} height={height} fill="#E3B485" />
+  <rect x="0" y="0" width={viewboxWidth} height={viewboxHeight} fill="#E3B485" />
 
   <!-- Nut -->
-  <rect x="0" y="0" width={nutWidth} height={height} fill="#222" />
+  <rect x="0" y="0" width={nutWidth} height={viewboxHeight} fill="#222" />
 
   <!-- Frets -->
-  {#each Array(fretCount) as _, i}
+  {#each fretPositions.slice(1) as pos, i}
     <rect 
-      x={fretPositions[i + 1] - fretWidth / 2} 
+      x={pos - fretWireWidth / 2} 
       y="0" 
-      width={fretWidth} 
-      height={height} 
-      fill="#ccc" 
+      width={fretWireWidth} 
+      height={viewboxHeight} 
+      fill="#bbb" 
     />
   {/each}
   
@@ -53,7 +51,7 @@
   {#each inlayFrets as fret}
     <circle 
       cx={(fretPositions[fret] + fretPositions[fret - 1]) / 2}
-      cy={height / 2}
+      cy={viewboxHeight / 2}
       r="8"
       fill="#a1a1a1"
     />
@@ -63,13 +61,13 @@
   {#if fretCount >= 12}
     <circle
       cx={(fretPositions[12] + fretPositions[11]) / 2}
-      cy={height / 3}
+      cy={viewboxHeight / 3}
       r="8"
       fill="#a1a1a1"
     />
     <circle
       cx={(fretPositions[12] + fretPositions[11]) / 2}
-      cy={2 * height / 3}
+      cy={2 * viewboxHeight / 3}
       r="8"
       fill="#a1a1a1"
     />
@@ -78,13 +76,19 @@
   <!-- Strings -->
   {#each strings as string, i}
     <line
-      x1="0"
-      y1={10 + i * stringHeight}
-      x2={width}
-      y2={10 + i * stringHeight}
+      x1={nutWidth}
+      y1={10 + i * stringSpacing}
+      x2={viewboxWidth}
+      y2={10 + i * stringSpacing}
       stroke="#ddd"
       stroke-width={1 + i * 0.5}
     />
   {/each}
-
 </svg>
+
+<style>
+  svg {
+    width: 100%;
+    height: auto;
+  }
+</style>
