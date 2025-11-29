@@ -52,13 +52,17 @@
   // =======================================================
   // Reactive State (for Fretboard Mode)
   // =======================================================
-  let fretboardChallengeMode = 'find-note'; // 'find-note' or 'identify-note'
+  let fretboardChallengeMode = 'find-note-click'; // 'find-note-click', 'find-note-perform', or 'identify-note'
   let fretboardChallengeNote = '';
+  let fretboardChallengeString = null; // null = random string, or 0-5 for specific string
+  let fretboardActualTargetString = null; // The actual string for the current challenge
   let fretboardChallengePosition = null; // { string: number, fret: number }
   let fretboardAnswerDots = []; // Array of {string, fret} showing all positions of a note
   let fretboardUserGuess = ''; // User's note guess in identify-note mode
   let fretboardFeedback = '';
   let fretboardFeedbackClass = '';
+  let fretboardIsListening = false;
+  let fretboardDetectedNote = '';
   
   let startButtonText = 'Start Listening';
 
@@ -363,17 +367,113 @@
     return { string: stringIndex, fret };
   }
 
+  // Detect note name from frequency
+  function frequencyToNoteName(frequency) {
+    if (frequency <= 0) return null;
+    // Calculate semitones from C0
+    const semitonesFromC0 = 12 * Math.log2(frequency / 16.35);
+    const noteIndex = Math.round(semitonesFromC0) % 12;
+    return NOTE_NAMES[noteIndex];
+  }
+
+  async function startFretboardPitchDetection() {
+    if (fretboardIsListening) return;
+    try {
+      fretboardFeedback = 'Requesting microphone access...';
+      if (audioContext.state === 'suspended') await audioContext.resume();
+
+      fretboardDetectedNote = '';
+      
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const source = audioContext.createMediaStreamSource(micStream);
+      
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 2048;
+      source.connect(analyserNode);
+
+      const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
+      const input = new Float32Array(detector.inputLength);
+      
+      fretboardIsListening = true;
+      updateFretboardPitch(detector, input, audioContext.sampleRate);
+
+      fretboardFeedback = `Play ${fretboardChallengeNote} on your instrument...`;
+      fretboardFeedbackClass = '';
+    } catch (err) {
+      console.error("ERROR in startFretboardPitchDetection:", err);
+      fretboardFeedback = "Error during microphone setup. Please ensure access and try again.";
+      fretboardFeedbackClass = 'wrong';
+      stopFretboardPitchDetection();
+    }
+  }
+
+  function updateFretboardPitch(detector, input, sampleRate) {
+    if (!fretboardIsListening) return;
+
+    analyserNode.getFloatTimeDomainData(input);
+    const [pitch, clarity] = detector.findPitch(input, sampleRate);
+
+    if (clarity > CLARITY_THRESHOLD && pitch > 50) {
+      const detectedNote = frequencyToNoteName(pitch);
+      fretboardDetectedNote = `${detectedNote} (${pitch.toFixed(1)} Hz)`;
+
+      if (detectedNote === fretboardChallengeNote) {
+        fretboardFeedback = `CORRECT! You played ${fretboardChallengeNote}. Here are all positions:`;
+        fretboardFeedbackClass = 'correct';
+        fretboardAnswerDots = getNoteFretPositions(fretboardChallengeNote);
+        stopFretboardPitchDetection();
+        return;
+      }
+    } else {
+      fretboardDetectedNote = '-- Hz';
+    }
+    
+    animationFrameId = requestAnimationFrame(() => updateFretboardPitch(detector, input, sampleRate));
+  }
+
+  function stopFretboardPitchDetection() {
+    fretboardIsListening = false;
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+    if (analyserNode) {
+      analyserNode.disconnect();
+      analyserNode = null;
+    }
+    if (micStream) {
+      micStream.getTracks().forEach(track => track.stop());
+      micStream = null;
+    }
+  }
+
   function startNewFretboardChallenge() {
     fretboardAnswerDots = [];
     fretboardChallengePosition = null;
     fretboardUserGuess = '';
     fretboardFeedback = '';
     fretboardFeedbackClass = '';
+    fretboardDetectedNote = '';
+    if (fretboardIsListening) stopFretboardPitchDetection();
     
-    if (fretboardChallengeMode === 'find-note') {
-      // Challenge: find all positions of this note
+    if (fretboardChallengeMode === 'find-note-click') {
+      // Challenge: click all positions of this note
       fretboardChallengeNote = getRandomNote();
-      fretboardFeedback = `Find all positions of ${fretboardChallengeNote} on the fretboard.`;
+      // If null, pick a random string for this challenge
+      fretboardActualTargetString = fretboardChallengeString !== null 
+        ? fretboardChallengeString 
+        : Math.floor(Math.random() * GUITAR_STRINGS.length);
+      const stringName = GUITAR_STRINGS[fretboardActualTargetString].name;
+      fretboardFeedback = `Find ${fretboardChallengeNote} on the ${stringName} string.`;
+    } else if (fretboardChallengeMode === 'find-note-perform') {
+      // Challenge: perform this note on your instrument
+      fretboardChallengeNote = getRandomNote();
+      // If null, pick a random string for this challenge
+      fretboardActualTargetString = fretboardChallengeString !== null 
+        ? fretboardChallengeString 
+        : Math.floor(Math.random() * GUITAR_STRINGS.length);
+      const stringName = GUITAR_STRINGS[fretboardActualTargetString].name;
+      fretboardFeedback = `Play ${fretboardChallengeNote} on the ${stringName} string.`;
     } else {
       // Challenge: identify the note at this position
       fretboardChallengePosition = getRandomFretPosition();
@@ -388,9 +488,19 @@
   function handleFretboardNoteSelected(event) {
     const { string, fret } = event.detail;
     
-    if (fretboardChallengeMode === 'find-note') {
+    if (fretboardChallengeMode === 'find-note-click') {
       // User clicked a fret in find-note mode
       const clickedNote = getNoteAtPosition(string, fret);
+      
+      // Check if specific string was required
+      if (string !== fretboardActualTargetString) {
+        const wrongStringName = GUITAR_STRINGS[string].name;
+        const correctStringName = GUITAR_STRINGS[fretboardActualTargetString].name;
+        fretboardFeedback = `That's the ${wrongStringName} string. Find ${fretboardChallengeNote} on the ${correctStringName} string.`;
+        fretboardFeedbackClass = 'wrong';
+        return;
+      }
+      
       if (clickedNote === fretboardChallengeNote) {
         fretboardFeedback = `CORRECT! That's ${fretboardChallengeNote}. Here are all positions:`;
         fretboardFeedbackClass = 'correct';
@@ -478,15 +588,43 @@
       <h2>Fretboard Training</h2>
       
       <div class="app-mode-switcher">
-        <button class:active={fretboardChallengeMode === 'find-note'} on:click={() => { fretboardChallengeMode = 'find-note'; startNewFretboardChallenge(); }}>
-          Find Note
+        <button class:active={fretboardChallengeMode === 'find-note-click'} on:click={() => { fretboardChallengeMode = 'find-note-click'; startNewFretboardChallenge(); }}>
+          Find Note (Click)
+        </button>
+        <button class:active={fretboardChallengeMode === 'find-note-perform'} on:click={() => { fretboardChallengeMode = 'find-note-perform'; startNewFretboardChallenge(); }}>
+          Find Note (Perform)
         </button>
         <button class:active={fretboardChallengeMode === 'identify-note'} on:click={() => { fretboardChallengeMode = 'identify-note'; startNewFretboardChallenge(); }}>
           Identify Note
         </button>
       </div>
 
+      {#if fretboardChallengeMode === 'find-note-click' || fretboardChallengeMode === 'find-note-perform'}
+        <div style="margin: 15px 0;">
+          <label>
+            Target string:
+            <select bind:value={fretboardChallengeString} on:change={startNewFretboardChallenge}>
+              <option value={null}>Random</option>
+              {#each GUITAR_STRINGS as string, idx}
+                <option value={idx}>{string.name} string ({string.openNote})</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+      {/if}
+
       <button on:click={startNewFretboardChallenge}>New Challenge</button>
+
+      {#if fretboardChallengeMode === 'find-note-perform'}
+        <div style="margin: 20px 0;">
+          <p>Detected: <span>{fretboardDetectedNote}</span></p>
+          {#if !fretboardIsListening}
+            <button on:click={startFretboardPitchDetection}>Start Listening</button>
+          {:else}
+            <button on:click={stopFretboardPitchDetection}>Stop Listening</button>
+          {/if}
+        </div>
+      {/if}
 
       <div class="fretboard-wrapper">
         <Fretboard
