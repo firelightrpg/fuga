@@ -55,11 +55,28 @@
   preserveAspectRatio="xMidYMid meet"
   aria-label="Guitar Fretboard"
 >
+  <!-- Fretboard border/outline -->
+  <rect
+    x="0"
+    y="0"
+    width={viewboxWidth}
+    height={viewboxHeight}
+    fill="none"
+    stroke="#333"
+    stroke-width="2"
+  />
+
   <!-- Neck Wood -->
   <rect x="0" y="0" width={viewboxWidth} height={viewboxHeight} fill="#E3B485" />
 
+  <!-- Open string area highlight (behind the nut) -->
+  <rect x="0" y="0" width={nutWidth} height={viewboxHeight} fill="#d4a574" opacity="0.5" />
+
   <!-- Nut -->
-  <rect x="0" y="0" width={nutWidth} height={viewboxHeight} fill="#222" />
+  <rect x="0" y="0" width={nutWidth} height={viewboxHeight} fill="#222" opacity="0.8" />
+
+  <!-- Nut border to make it more visible -->
+  <line x1={nutWidth} y1="0" x2={nutWidth} y2={viewboxHeight} stroke="#000" stroke-width="3" />
 
   <!-- Frets -->
   {#each fretPositions.slice(1) as pos, i}
@@ -158,5 +175,17 @@
   svg {
     width: 100%;
     height: auto;
+    border: 2px solid #666;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  rect[role='button']:hover {
+    fill: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  rect[role='button']:focus {
+    outline: 2px solid #007bff;
+    outline-offset: -2px;
   }
 </style>
