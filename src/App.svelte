@@ -7,6 +7,7 @@
   // App-Level State
   // =======================================================
   let appMode = 'interval'; // 'interval' or 'fretboard'
+  let darkMode = false;
 
   // =======================================================
   // Musical Constants
@@ -610,8 +611,13 @@
   }
 </script>
 
-<main>
-  <h1>Fuga - Ear Trainer</h1>
+<main class:dark-mode={darkMode}>
+  <div class="header">
+    <h1>Fuga - Ear Trainer</h1>
+    <button class="dark-mode-toggle" on:click={() => darkMode = !darkMode}>
+      {darkMode ? '☀️' : '🌙'}
+    </button>
+  </div>
   
   <div class="app-mode-switcher">
     <button class:active={appMode === 'interval'} on:click={() => appMode = 'interval'}>
@@ -750,6 +756,7 @@
     margin: 0;
     background-color: #f4f4f4;
     color: #333;
+    transition: background-color 0.3s, color 0.3s;
   }
 
   main {
@@ -760,6 +767,75 @@
     min-height: 100vh;
     padding-top: 2rem;
     text-align: center;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 1rem;
+  }
+
+  .dark-mode-toggle {
+    padding: 8px 16px;
+    font-size: 1.5em;
+    background-color: transparent;
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .dark-mode-toggle:hover {
+    background-color: rgba(128, 128, 128, 0.2);
+  }
+
+  /* Dark Mode Styles */
+  main.dark-mode {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+  }
+
+  main.dark-mode :global(body) {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+  }
+
+  main.dark-mode .app-mode-switcher button {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border-color: #444;
+  }
+
+  main.dark-mode .app-mode-switcher button.active {
+    background-color: #0066cc;
+  }
+
+  main.dark-mode select {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border-color: #444;
+  }
+
+  main.dark-mode button {
+    background-color: #3a7d3f;
+  }
+
+  main.dark-mode button:hover {
+    background-color: #2d6330;
+  }
+
+  main.dark-mode .toggle {
+    background-color: #0066cc;
+  }
+
+  main.dark-mode .toggle:hover {
+    background-color: #0052a3;
+  }
+
+  main.dark-mode .dark-mode-toggle {
+    border-color: #666;
+    color: #e0e0e0;
   }
   
   .app-mode-switcher {
