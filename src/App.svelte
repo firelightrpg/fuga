@@ -114,6 +114,7 @@
   ];
 
   onMount(() => {
+    // @ts-ignore - webkitAudioContext is for Safari compatibility
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   });
 

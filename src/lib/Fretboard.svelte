@@ -2,7 +2,9 @@
   import { createEventDispatcher } from 'svelte';
 
   export let fretCount = 12;
+  /** @type {Array<{string: number, fret: number}>} */
   export let answerDots = []; // Array of {string: 0-5, fret: 0-12} for showing correct answers
+  /** @type {{string: number, fret: number} | null} */
   export let challengeDot = null; // {string: 0-5, fret: 0-12} for identify-note mode
 
   const dispatch = createEventDispatcher();
@@ -118,7 +120,11 @@
         height={stringSpacing}
         fill="transparent"
         style="cursor: pointer;"
+        role="button"
+        tabindex="0"
+        aria-label="Fret {fret} on string {stringIdx + 1}"
         on:click={() => handleFretClick(stringIdx, fret)}
+        on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleFretClick(stringIdx, fret)}
       />
     {/each}
   {/each}
