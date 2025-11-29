@@ -1,55 +1,154 @@
-# Svelte + Vite
+# Fuga - Ear Training Web App
 
-This template should help get you started developing with Svelte in Vite.
+**Fuga** is a free, web-based ear training application for musicians. Practice interval recognition, interval performance, and fretboard note identification at your own pace.
 
-## Getting Started
+🎸 **Live Demo:** [https://firelightrpg.github.io/fuga/](https://firelightrpg.github.io/fuga/)
 
-Run the development server:
+## Features
+
+### Interval Training
+
+- **Guess Mode**: Listen to intervals and identify them
+- **Perform Mode**: See an interval name, sing or play it on your instrument (uses microphone for pitch detection)
+  - Configurable timer for pressure-based practice
+  - Auto-repeats on wrong answers until you get it right
+  - Supports melodic intervals only (staccato notes recommended)
+
+### Fretboard Training (Guitar)
+
+- **Find Note (Click)**: Given a note name, click where it appears on the fretboard
+- **Find Note (Perform)**: Play the note on your instrument (microphone detects pitch)
+- **Identify Note**: See a highlighted fret, select which note it is
+- **String Targeting**: Practice specific strings or random strings
+- Shows all positions of a note after correct answers
+
+### General Features
+
+- 🌙 **Dark Mode** toggle
+- ⌨️ **Keyboard Accessible** (navigate fretboard with Tab/Enter/Space)
+- 📱 **Responsive Design**
+
+## Using the App
+
+1. Choose between **Interval Training** or **Fretboard Training**
+2. In Interval Training:
+   - **Guessing**: Click "Play Random Interval" and select your answer
+   - **Perform**: Adjust timer, then sing/play the displayed interval
+3. In Fretboard Training:
+   - Select your mode and optionally target a specific string
+   - Click frets or use your microphone depending on mode
+
+## For Contributors
+
+This project uses:
+
+- **Svelte 5** - UI framework
+- **Vite** - Build tool with HMR
+- **Prettier** - Code formatting (like Black for Python)
+- **ESLint** - Code linting
+- **Husky + lint-staged** - Pre-commit hooks
+- **GitHub Actions** - CI/CD pipeline
+
+### Development Setup
+
+1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/firelightrpg/fuga.git
+   cd fuga
+   ```
+
+2. Install dependencies:
+
+   ```sh
+   npm install
+   ```
+
+3. Start development server:
+   ```sh
+   npm run dev
+   ```
+
+### Available Scripts
 
 ```sh
-npm run dev
+npm run dev          # Start development server with HMR
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run format       # Auto-format all files with Prettier
+npm run format:check # Check formatting without changing files
+npm run lint         # Run ESLint
 ```
 
-This starts the Vite development server with hot module replacement. Open your browser to the URL shown in the terminal (typically http://localhost:5173).
+### Pre-commit Hooks
 
-To debug, use your browser's DevTools (F12) or set up VS Code debugging with a `.vscode/launch.json` configuration.
+The project automatically formats and lints code before every commit:
 
-## Recommended IDE Setup
+- Prettier formats all staged files
+- ESLint fixes auto-fixable issues
+- Commits are blocked if there are unfixable errors
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+To bypass (not recommended): `git commit --no-verify`
 
-## Need an official Svelte framework?
+### CI/CD Pipeline
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+- **CI Workflow**: Runs on all pushes/PRs - checks formatting, linting, and builds
+- **Deploy Workflow**: Runs on pushes to main - deploys to GitHub Pages after CI passes
 
-## Technical considerations
+### Project Structure
 
-**Why use this over SvelteKit?**
+```
+fuga/
+├── src/
+│   ├── App.svelte          # Main application component
+│   ├── lib/
+│   │   ├── Fretboard.svelte # Guitar fretboard visualization
+│   │   └── Counter.svelte   # Example component (unused)
+│   ├── main.js             # App entry point
+│   └── app.css             # Global styles
+├── .github/workflows/      # CI/CD workflows
+├── .husky/                 # Git hooks
+└── public/                 # Static assets
+```
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+## Contributing
 
-This template contains as little as possible to get started with Vite + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+Contributions welcome! Please:
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes (pre-commit hooks will run automatically)
+4. Push and create a pull request
+5. CI must pass before merge
 
-**Why include `.vscode/extensions.json`?**
+## Technical Notes
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
+### Browser Compatibility
 
-**Why enable `checkJs` in the JS template?**
+- Requires Web Audio API support (all modern browsers)
+- Microphone access required for "Perform" modes
+- Works best in Chrome/Edge (Firefox has some pitch detection quirks)
 
-It is likely that most cases of changing variable types in runtime are likely to be accidental, rather than deliberate. This provides advanced typechecking out of the box. Should you like to take advantage of the dynamically-typed nature of JavaScript, it is trivial to change the configuration.
+### Known Limitations
 
-**Why is HMR not preserving my local component state?**
+- Perform mode only supports melodic intervals (not harmonic)
+- Pitch detection requires clear, sustained notes
+- Fretboard currently shows standard tuning (E-A-D-G-B-e) only
 
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/sveltejs/svelte-hmr/tree/master/packages/svelte-hmr#preservation-of-local-state).
+## License
 
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
+MIT
 
-```js
+---
+
+## Svelte + Vite Technical Details
+
+This project was bootstrapped with Svelte + Vite.
 // store.js
 // An extremely simple external store
 import { writable } from 'svelte/store';
 export default writable(0);
+
+```
+
 ```
