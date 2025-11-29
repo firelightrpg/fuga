@@ -127,7 +127,8 @@ Contributions welcome! Please:
 
 - Requires Web Audio API support (all modern browsers)
 - Microphone access required for "Perform" modes
-- Works best in Chrome/Edge (Firefox has some pitch detection quirks)
+- Works best in Chromium-based browsers (Chrome, Edge, Brave)
+- Firefox may have some pitch detection quirks
 
 ### Known Limitations
 
