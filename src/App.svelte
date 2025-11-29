@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { PitchDetector } from "pitchy";
+  import { PitchDetector } from 'pitchy';
   import Fretboard from './lib/Fretboard.svelte';
 
   // =======================================================
@@ -13,30 +13,36 @@
   // Musical Constants
   // =======================================================
   const A4_FREQ = 440;
-  const C4_FREQ = A4_FREQ * Math.pow(2, -9/12);
-  const SEMITONE_RATIO = Math.pow(2, 1/12);
+  const C4_FREQ = A4_FREQ * Math.pow(2, -9 / 12);
+  const SEMITONE_RATIO = Math.pow(2, 1 / 12);
 
   const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  
+
   const GUITAR_STRINGS = [
     { name: 'e', openNote: 'E', octave: 4 },
     { name: 'B', openNote: 'B', octave: 3 },
     { name: 'G', openNote: 'G', octave: 3 },
     { name: 'D', openNote: 'D', octave: 3 },
     { name: 'A', openNote: 'A', octave: 2 },
-    { name: 'E', openNote: 'E', octave: 2 }
+    { name: 'E', openNote: 'E', octave: 2 },
   ];
 
   const orderedIntervals = [
-      {semitones: 1, name: "Minor 2nd"}, {semitones: 2, name: "Major 2nd"},
-      {semitones: 3, name: "Minor 3rd"}, {semitones: 4, name: "Major 3rd"},
-      {semitones: 5, name: "Perfect 4th"}, {semitones: 6, name: "Tritone"},
-      {semitones: 7, name: "Perfect 5th"}, {semitones: 8, name: "Minor 6th"},
-      {semitones: 9, name: "Major 6th"}, {semitones: 10, name: "Minor 7th"},
-      {semitones: 11, name: "Major 7th"}, {semitones: 12, name: "Octave"}
+    { semitones: 1, name: 'Minor 2nd' },
+    { semitones: 2, name: 'Major 2nd' },
+    { semitones: 3, name: 'Minor 3rd' },
+    { semitones: 4, name: 'Major 3rd' },
+    { semitones: 5, name: 'Perfect 4th' },
+    { semitones: 6, name: 'Tritone' },
+    { semitones: 7, name: 'Perfect 5th' },
+    { semitones: 8, name: 'Minor 6th' },
+    { semitones: 9, name: 'Major 6th' },
+    { semitones: 10, name: 'Minor 7th' },
+    { semitones: 11, name: 'Major 7th' },
+    { semitones: 12, name: 'Octave' },
   ];
-  const intervalNames = Object.fromEntries(orderedIntervals.map(i => [i.semitones, i.name]));
-  const allIntervalSemitones = orderedIntervals.map(i => i.semitones);
+  const intervalNames = Object.fromEntries(orderedIntervals.map((i) => [i.semitones, i.name]));
+  const allIntervalSemitones = orderedIntervals.map((i) => i.semitones);
 
   // =======================================================
   // Reactive State (for Interval Mode)
@@ -49,7 +55,7 @@
   let feedbackText = '';
   let feedbackClass = '';
   let userGuess = '';
-  
+
   // Timer settings for perform mode
   let performTimerDuration = 5; // seconds between challenges
   let performShowResultsDuration = 2; // seconds to show results before next challenge
@@ -71,7 +77,7 @@
   let fretboardFeedbackClass = '';
   let fretboardIsListening = false;
   let fretboardDetectedNote = '';
-  
+
   let startButtonText = 'Start Listening';
 
   // =======================================================
@@ -93,13 +99,19 @@
   let pitchConfidence = 0;
   let hasBeenSilentAfterFirstNote = false;
   let pitchBuffer = [];
-  const REQUIRED_CONFIDENCE = 5; 
+  const REQUIRED_CONFIDENCE = 5;
   const CLARITY_THRESHOLD = 0.9;
   const PITCH_WINDOW_SEMITONES = 0.5;
 
   const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const stringNotes = [{ string: 1, note: 'E', octave: 4 }, { string: 2, note: 'B', octave: 3 }, { string: 3, note: 'G', octave: 3 }, { string: 4, note: 'D', octave: 3 }, { string: 5, note: 'A', octave: 2 }, { string: 6, note: 'E', octave: 2 }];
-
+  const stringNotes = [
+    { string: 1, note: 'E', octave: 4 },
+    { string: 2, note: 'B', octave: 3 },
+    { string: 3, note: 'G', octave: 3 },
+    { string: 4, note: 'D', octave: 3 },
+    { string: 5, note: 'A', octave: 2 },
+    { string: 6, note: 'E', octave: 2 },
+  ];
 
   onMount(() => {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -139,7 +151,7 @@
 
     analyserNode.getFloatTimeDomainData(input);
     const [pitch, clarity] = detector.findPitch(input, sampleRate);
-    
+
     if (userMelodyPlayback.length === 1 && clarity < CLARITY_THRESHOLD) {
       hasBeenSilentAfterFirstNote = true;
     }
@@ -147,7 +159,10 @@
     if (clarity > CLARITY_THRESHOLD && pitch > 50) {
       pitchText = `${pitch.toFixed(2)} Hz`;
 
-      if (pitchCandidate && Math.abs(calculateSemitoneDifference(pitch, pitchCandidate)) < PITCH_WINDOW_SEMITONES) {
+      if (
+        pitchCandidate &&
+        Math.abs(calculateSemitoneDifference(pitch, pitchCandidate)) < PITCH_WINDOW_SEMITONES
+      ) {
         pitchConfidence++;
         pitchBuffer.push(pitch);
       } else {
@@ -158,17 +173,16 @@
 
       if (pitchConfidence === REQUIRED_CONFIDENCE) {
         const averagePitch = pitchBuffer.reduce((a, b) => a + b, 0) / pitchBuffer.length;
-        
+
         if (userMelodyPlayback.length === 0) {
           userMelodyPlayback.push(averagePitch);
-        } 
-        else if (userMelodyPlayback.length === 1 && hasBeenSilentAfterFirstNote) {
+        } else if (userMelodyPlayback.length === 1 && hasBeenSilentAfterFirstNote) {
           userMelodyPlayback.push(averagePitch);
           stopPitchDetection();
           evaluateProductionChallenge();
-          return; 
+          return;
         }
-        pitchConfidence = 0; 
+        pitchConfidence = 0;
       }
     } else {
       pitchText = `-- Hz`;
@@ -176,7 +190,7 @@
       pitchConfidence = 0;
       pitchBuffer = [];
     }
-    
+
     animationFrameId = requestAnimationFrame(() => updatePitch(detector, input, sampleRate));
   }
 
@@ -191,25 +205,25 @@
       pitchConfidence = 0;
       hasBeenSilentAfterFirstNote = false;
       pitchBuffer = [];
-      
+
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const source = audioContext.createMediaStreamSource(micStream);
-      
+
       analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 2048;
       source.connect(analyserNode);
 
       const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
       const input = new Float32Array(detector.inputLength);
-      
+
       isListening = true;
       updatePitch(detector, input, audioContext.sampleRate);
 
       feedbackText = 'Listening for your notes...';
       feedbackClass = '';
     } catch (err) {
-      console.error("ERROR in startPitchDetection:", err);
-      feedbackText = "Error during microphone setup. Please ensure access and try again.";
+      console.error('ERROR in startPitchDetection:', err);
+      feedbackText = 'Error during microphone setup. Please ensure access and try again.';
       feedbackClass = 'wrong';
       stopPitchDetection();
     }
@@ -226,7 +240,7 @@
       analyserNode = null;
     }
     if (micStream) {
-      micStream.getTracks().forEach(track => track.stop());
+      micStream.getTracks().forEach((track) => track.stop());
       micStream = null;
     }
     feedbackText = 'Microphone stopped.';
@@ -248,7 +262,7 @@
     productionChallengeIntervalSemitones = newIntervalSemitones;
     challengeText = intervalNames[newIntervalSemitones];
     feedbackText = `Perform a ${intervalNames[newIntervalSemitones]}.`;
-    
+
     // Auto-start listening and timer in perform mode
     if (isPerformMode) {
       setTimeout(() => {
@@ -259,12 +273,15 @@
 
   function evaluateProductionChallenge() {
     if (userMelodyPlayback.length < 2) return;
-    const playedSemitones = calculateSemitoneDifference(userMelodyPlayback[0], userMelodyPlayback[1]);
+    const playedSemitones = calculateSemitoneDifference(
+      userMelodyPlayback[0],
+      userMelodyPlayback[1]
+    );
     const roundedPlayedSemitones = Math.round(playedSemitones);
     if (roundedPlayedSemitones === productionChallengeIntervalSemitones) {
       feedbackText = `CORRECT! You performed a ${intervalNames[productionChallengeIntervalSemitones]}.`;
       feedbackClass = 'correct';
-      
+
       // Stop the timer and show results briefly before next challenge
       stopPerformTimer();
       setTimeout(() => {
@@ -277,12 +294,12 @@
       const playedIntervalName = intervalNames[roundedPlayedSemitones] || `an unknown interval`;
       feedbackText = `WRONG. You performed ${playedIntervalName}. Try again for ${intervalNames[productionChallengeIntervalSemitones]}.`;
       feedbackClass = 'wrong';
-      
+
       // Keep the same challenge, reset for another attempt
       resetProductionChallenge();
       challengeText = intervalNames[productionChallengeIntervalSemitones];
       feedbackText = `WRONG. You performed ${playedIntervalName}. Try again for ${intervalNames[productionChallengeIntervalSemitones]}.`;
-      
+
       // Restart timer and listening after brief delay
       setTimeout(() => {
         if (isPerformMode) {
@@ -305,7 +322,7 @@
     stopPerformTimer();
     performTimerActive = true;
     performTimeRemaining = performTimerDuration;
-    
+
     performTimerInterval = setInterval(() => {
       performTimeRemaining--;
       if (performTimeRemaining <= 0) {
@@ -332,7 +349,7 @@
     if (userMelodyPlayback.length < 2 && feedbackClass !== 'correct' && feedbackClass !== 'wrong') {
       feedbackText = "Time's up! Try again.";
       feedbackClass = 'wrong';
-      
+
       // Keep the same challenge, restart timer after brief delay
       setTimeout(() => {
         resetProductionChallenge();
@@ -381,13 +398,15 @@
       playNote(rootFreq, now, 0.8);
       playNote(intervalFreq, now + 0.9, 0.8);
     }
-    setTimeout(() => { isPlaying = false; }, 1800);
+    setTimeout(() => {
+      isPlaying = false;
+    }, 1800);
   }
 
   function handleSubmitGuess() {
     const userSelectedSemitones = parseInt(userGuess, 10);
     if (isNaN(userSelectedSemitones)) {
-      feedbackText = "Please select an interval from the list.";
+      feedbackText = 'Please select an interval from the list.';
       feedbackClass = 'wrong';
       return;
     }
@@ -403,7 +422,7 @@
   // =======================================================
   // Fretboard Mode Functions
   // =======================================================
-  
+
   // Get the semitone offset from C for a given note name
   function getNoteIndex(noteName) {
     return NOTE_NAMES.indexOf(noteName);
@@ -413,9 +432,9 @@
   function getNoteFretPositions(noteName, maxFret = 12) {
     const positions = [];
     const targetNoteIndex = getNoteIndex(noteName);
-    
+
     if (targetNoteIndex === -1) return positions;
-    
+
     GUITAR_STRINGS.forEach((string, stringIdx) => {
       const openNoteIndex = getNoteIndex(string.openNote);
       for (let fret = 0; fret <= maxFret; fret++) {
@@ -425,7 +444,7 @@
         }
       }
     });
-    
+
     return positions;
   }
 
@@ -465,25 +484,25 @@
       if (audioContext.state === 'suspended') await audioContext.resume();
 
       fretboardDetectedNote = '';
-      
+
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const source = audioContext.createMediaStreamSource(micStream);
-      
+
       analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 2048;
       source.connect(analyserNode);
 
       const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
       const input = new Float32Array(detector.inputLength);
-      
+
       fretboardIsListening = true;
       updateFretboardPitch(detector, input, audioContext.sampleRate);
 
       fretboardFeedback = `Play ${fretboardChallengeNote} on your instrument...`;
       fretboardFeedbackClass = '';
     } catch (err) {
-      console.error("ERROR in startFretboardPitchDetection:", err);
-      fretboardFeedback = "Error during microphone setup. Please ensure access and try again.";
+      console.error('ERROR in startFretboardPitchDetection:', err);
+      fretboardFeedback = 'Error during microphone setup. Please ensure access and try again.';
       fretboardFeedbackClass = 'wrong';
       stopFretboardPitchDetection();
     }
@@ -509,8 +528,10 @@
     } else {
       fretboardDetectedNote = '-- Hz';
     }
-    
-    animationFrameId = requestAnimationFrame(() => updateFretboardPitch(detector, input, sampleRate));
+
+    animationFrameId = requestAnimationFrame(() =>
+      updateFretboardPitch(detector, input, sampleRate)
+    );
   }
 
   function stopFretboardPitchDetection() {
@@ -524,7 +545,7 @@
       analyserNode = null;
     }
     if (micStream) {
-      micStream.getTracks().forEach(track => track.stop());
+      micStream.getTracks().forEach((track) => track.stop());
       micStream = null;
     }
   }
@@ -537,23 +558,25 @@
     fretboardFeedbackClass = '';
     fretboardDetectedNote = '';
     if (fretboardIsListening) stopFretboardPitchDetection();
-    
+
     if (fretboardChallengeMode === 'find-note-click') {
       // Challenge: click all positions of this note
       fretboardChallengeNote = getRandomNote();
       // If null, pick a random string for this challenge
-      fretboardActualTargetString = fretboardChallengeString !== null 
-        ? fretboardChallengeString 
-        : Math.floor(Math.random() * GUITAR_STRINGS.length);
+      fretboardActualTargetString =
+        fretboardChallengeString !== null
+          ? fretboardChallengeString
+          : Math.floor(Math.random() * GUITAR_STRINGS.length);
       const stringName = GUITAR_STRINGS[fretboardActualTargetString].name;
       fretboardFeedback = `Find ${fretboardChallengeNote} on the ${stringName} string.`;
     } else if (fretboardChallengeMode === 'find-note-perform') {
       // Challenge: perform this note on your instrument
       fretboardChallengeNote = getRandomNote();
       // If null, pick a random string for this challenge
-      fretboardActualTargetString = fretboardChallengeString !== null 
-        ? fretboardChallengeString 
-        : Math.floor(Math.random() * GUITAR_STRINGS.length);
+      fretboardActualTargetString =
+        fretboardChallengeString !== null
+          ? fretboardChallengeString
+          : Math.floor(Math.random() * GUITAR_STRINGS.length);
       const stringName = GUITAR_STRINGS[fretboardActualTargetString].name;
       fretboardFeedback = `Play ${fretboardChallengeNote} on the ${stringName} string.`;
     } else {
@@ -569,11 +592,11 @@
 
   function handleFretboardNoteSelected(event) {
     const { string, fret } = event.detail;
-    
+
     if (fretboardChallengeMode === 'find-note-click') {
       // User clicked a fret in find-note mode
       const clickedNote = getNoteAtPosition(string, fret);
-      
+
       // Check if specific string was required
       if (string !== fretboardActualTargetString) {
         const wrongStringName = GUITAR_STRINGS[string].name;
@@ -582,7 +605,7 @@
         fretboardFeedbackClass = 'wrong';
         return;
       }
-      
+
       if (clickedNote === fretboardChallengeNote) {
         fretboardFeedback = `CORRECT! That's ${fretboardChallengeNote}. Here are all positions:`;
         fretboardFeedbackClass = 'correct';
@@ -600,7 +623,7 @@
       fretboardFeedbackClass = 'wrong';
       return;
     }
-    
+
     if (fretboardUserGuess === fretboardChallengeNote) {
       fretboardFeedback = `CORRECT! That was ${fretboardChallengeNote}.`;
       fretboardFeedbackClass = 'correct';
@@ -614,16 +637,16 @@
 <main class:dark-mode={darkMode}>
   <div class="header">
     <h1>Fuga - Ear Trainer</h1>
-    <button class="dark-mode-toggle" on:click={() => darkMode = !darkMode}>
+    <button class="dark-mode-toggle" on:click={() => (darkMode = !darkMode)}>
       {darkMode ? '☀️' : '🌙'}
     </button>
   </div>
-  
+
   <div class="app-mode-switcher">
-    <button class:active={appMode === 'interval'} on:click={() => appMode = 'interval'}>
+    <button class:active={appMode === 'interval'} on:click={() => (appMode = 'interval')}>
       Interval Training
     </button>
-    <button class:active={appMode === 'fretboard'} on:click={() => appMode = 'fretboard'}>
+    <button class:active={appMode === 'fretboard'} on:click={() => (appMode = 'fretboard')}>
       Fretboard Training
     </button>
   </div>
@@ -635,64 +658,98 @@
       <button class="toggle" on:click={handleToggleMode}>{toggleButtonText}</button>
 
       <div class="mode-content" class:active={!isPerformMode}>
-          <div style="margin-bottom: 20px;">
-              <button on:click={handlePlayRandomInterval}>Play Random Interval</button>
-          </div>
-          <div>
-              <select bind:value={userGuess} on:change={handleSubmitGuess}>
-                  <option value="">-- Select your guess --</option>
-                  {#each orderedIntervals as interval}
-                    <option value={interval.semitones}>{interval.name}</option>
-                  {/each}
-              </select>
-          </div>
+        <div style="margin-bottom: 20px;">
+          <button on:click={handlePlayRandomInterval}>Play Random Interval</button>
+        </div>
+        <div>
+          <select bind:value={userGuess} on:change={handleSubmitGuess}>
+            <option value="">-- Select your guess --</option>
+            {#each orderedIntervals as interval}
+              <option value={interval.semitones}>{interval.name}</option>
+            {/each}
+          </select>
+        </div>
       </div>
 
       <div class="mode-content" class:active={isPerformMode}>
-          <div style="margin-bottom: 15px;">
-            <label>
-              Challenge timer:
-              <input type="number" bind:value={performTimerDuration} min="3" max="60" step="1" style="width: 60px;" />
-              seconds
-            </label>
+        <div style="margin-bottom: 15px;">
+          <label>
+            Challenge timer:
+            <input
+              type="number"
+              bind:value={performTimerDuration}
+              min="3"
+              max="60"
+              step="1"
+              style="width: 60px;"
+            />
+            seconds
+          </label>
+        </div>
+
+        {#if performTimerActive}
+          <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">
+            Time: {performTimeRemaining}s
           </div>
-          
-          {#if performTimerActive}
-            <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">
-              Time: {performTimeRemaining}s
-            </div>
-          {/if}
-          
-          <p>Challenge: <span>{challengeText}</span></p>
-          <p class="tip"><em>Tip: Perform mode only works with melodic intervals. Sing or play each note separately using staccato (short, detached notes) for best results.</em></p>
-          <p>Your Pitch: <span>{pitchText}</span></p>
-          {#if !isListening}
-            <button on:click={startPitchDetection}>{startButtonText}</button>
-          {/if}
-          {#if isListening}
-            <button on:click={stopPitchDetection}>Stop Listening</button>
-          {/if}
-          {#if !performTimerActive && !isListening && userMelodyPlayback.length === 2}
-            <button on:click={playUserPlayedInterval}>Play My Interval</button>
-          {/if}
+        {/if}
+
+        <p>Challenge: <span>{challengeText}</span></p>
+        <p class="tip">
+          <em
+            >Tip: Perform mode only works with melodic intervals. Sing or play each note separately
+            using staccato (short, detached notes) for best results.</em
+          >
+        </p>
+        <p>Your Pitch: <span>{pitchText}</span></p>
+        {#if !isListening}
+          <button on:click={startPitchDetection}>{startButtonText}</button>
+        {/if}
+        {#if isListening}
+          <button on:click={stopPitchDetection}>Stop Listening</button>
+        {/if}
+        {#if !performTimerActive && !isListening && userMelodyPlayback.length === 2}
+          <button on:click={playUserPlayedInterval}>Play My Interval</button>
+        {/if}
       </div>
 
-      <div class="feedback" class:correct={feedbackClass === 'correct'} class:wrong={feedbackClass === 'wrong'}>
+      <div
+        class="feedback"
+        class:correct={feedbackClass === 'correct'}
+        class:wrong={feedbackClass === 'wrong'}
+      >
         {feedbackText}
       </div>
     </div>
   {:else if appMode === 'fretboard'}
     <div class="module-container">
       <h2>Fretboard Training</h2>
-      
+
       <div class="app-mode-switcher">
-        <button class:active={fretboardChallengeMode === 'find-note-click'} on:click={() => { fretboardChallengeMode = 'find-note-click'; startNewFretboardChallenge(); }}>
+        <button
+          class:active={fretboardChallengeMode === 'find-note-click'}
+          on:click={() => {
+            fretboardChallengeMode = 'find-note-click';
+            startNewFretboardChallenge();
+          }}
+        >
           Find Note (Click)
         </button>
-        <button class:active={fretboardChallengeMode === 'find-note-perform'} on:click={() => { fretboardChallengeMode = 'find-note-perform'; startNewFretboardChallenge(); }}>
+        <button
+          class:active={fretboardChallengeMode === 'find-note-perform'}
+          on:click={() => {
+            fretboardChallengeMode = 'find-note-perform';
+            startNewFretboardChallenge();
+          }}
+        >
           Find Note (Perform)
         </button>
-        <button class:active={fretboardChallengeMode === 'identify-note'} on:click={() => { fretboardChallengeMode = 'identify-note'; startNewFretboardChallenge(); }}>
+        <button
+          class:active={fretboardChallengeMode === 'identify-note'}
+          on:click={() => {
+            fretboardChallengeMode = 'identify-note';
+            startNewFretboardChallenge();
+          }}
+        >
           Identify Note
         </button>
       </div>
@@ -743,7 +800,11 @@
         </div>
       {/if}
 
-      <div class="feedback" class:correct={fretboardFeedbackClass === 'correct'} class:wrong={fretboardFeedbackClass === 'wrong'}>
+      <div
+        class="feedback"
+        class:correct={fretboardFeedbackClass === 'correct'}
+        class:wrong={fretboardFeedbackClass === 'wrong'}
+      >
         {fretboardFeedback}
       </div>
     </div>
@@ -756,7 +817,9 @@
     margin: 0;
     background-color: #f4f4f4;
     color: #333;
-    transition: background-color 0.3s, color 0.3s;
+    transition:
+      background-color 0.3s,
+      color 0.3s;
   }
 
   main {
@@ -837,7 +900,7 @@
     border-color: #666;
     color: #e0e0e0;
   }
-  
+
   .app-mode-switcher {
     margin-bottom: 2rem;
     border: 1px solid #ccc;
@@ -852,12 +915,12 @@
     color: #333;
     border: none;
   }
-  
+
   .app-mode-switcher button.active {
     background-color: #007bff;
     color: white;
   }
-  
+
   .module-container {
     display: flex;
     flex-direction: column;
@@ -871,7 +934,8 @@
     margin: 1rem auto;
   }
 
-  button, select {
+  button,
+  select {
     padding: 10px 20px;
     margin: 5px;
     font-size: 1.1em;
@@ -881,7 +945,7 @@
   }
 
   button {
-    background-color: #4CAF50;
+    background-color: #4caf50;
     color: white;
   }
 
@@ -911,9 +975,13 @@
     font-weight: bold;
   }
 
-  .correct { color: #28a745; }
-  .wrong { color: #dc3545; }
-  
+  .correct {
+    color: #28a745;
+  }
+  .wrong {
+    color: #dc3545;
+  }
+
   .mode-content {
     display: none;
     flex-direction: column;

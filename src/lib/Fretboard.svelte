@@ -1,6 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  
+
   export let fretCount = 12;
   export let answerDots = []; // Array of {string: 0-5, fret: 0-12} for showing correct answers
   export let challengeDot = null; // {string: 0-5, fret: 0-12} for identify-note mode
@@ -13,7 +13,7 @@
     { name: 'G', openNote: 'G', octave: 3 },
     { name: 'D', openNote: 'D', octave: 3 },
     { name: 'A', openNote: 'A', octave: 2 },
-    { name: 'E', openNote: 'E', octave: 2 }
+    { name: 'E', openNote: 'E', octave: 2 },
   ];
 
   // --- SVG Dimensions ---
@@ -48,7 +48,11 @@
   }
 </script>
 
-<svg viewBox={`0 0 ${viewboxWidth} ${viewboxHeight}`} preserveAspectRatio="xMidYMid meet" aria-label="Guitar Fretboard">
+<svg
+  viewBox={`0 0 ${viewboxWidth} ${viewboxHeight}`}
+  preserveAspectRatio="xMidYMid meet"
+  aria-label="Guitar Fretboard"
+>
   <!-- Neck Wood -->
   <rect x="0" y="0" width={viewboxWidth} height={viewboxHeight} fill="#E3B485" />
 
@@ -57,18 +61,18 @@
 
   <!-- Frets -->
   {#each fretPositions.slice(1) as pos, i}
-    <rect 
-      x={pos - fretWireWidth / 2} 
-      y="0" 
-      width={fretWireWidth} 
-      height={viewboxHeight} 
-      fill="#bbb" 
+    <rect
+      x={pos - fretWireWidth / 2}
+      y="0"
+      width={fretWireWidth}
+      height={viewboxHeight}
+      fill="#bbb"
     />
   {/each}
-  
+
   <!-- Inlay Dots -->
   {#each inlayFrets as fret}
-    <circle 
+    <circle
       cx={(fretPositions[fret] + fretPositions[fret - 1]) / 2}
       cy={viewboxHeight / 2}
       r="8"
@@ -86,7 +90,7 @@
     />
     <circle
       cx={(fretPositions[12] + fretPositions[11]) / 2}
-      cy={2 * viewboxHeight / 3}
+      cy={(2 * viewboxHeight) / 3}
       r="8"
       fill="#a1a1a1"
     />
@@ -110,7 +114,7 @@
       <rect
         x={fret === 0 ? 0 : fretPositions[fret - 1]}
         y={getStringY(stringIdx) - stringSpacing / 2}
-        width={fret === 0 ? nutWidth : (fretPositions[fret] - fretPositions[fret - 1])}
+        width={fret === 0 ? nutWidth : fretPositions[fret] - fretPositions[fret - 1]}
         height={stringSpacing}
         fill="transparent"
         style="cursor: pointer;"
