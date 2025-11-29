@@ -65,6 +65,7 @@ This project uses:
    ```
 
 3. Start development server:
+
    ```sh
    npm run dev
    ```
@@ -97,7 +98,7 @@ To bypass (not recommended): `git commit --no-verify`
 
 ### Project Structure
 
-```
+```text
 fuga/
 ├── src/
 │   ├── App.svelte          # Main application component
@@ -145,11 +146,3 @@ MIT
 ## Svelte + Vite Technical Details
 
 This project was bootstrapped with Svelte + Vite.
-// store.js
-// An extremely simple external store
-import { writable } from 'svelte/store';
-export default writable(0);
-
-```
-
-```

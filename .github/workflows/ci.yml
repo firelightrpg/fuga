@@ -30,5 +30,8 @@ jobs:
       - name: Lint with ESLint
         run: npm run lint
 
+      - name: Lint Markdown
+        run: npm run lint:md
+
       - name: Build
         run: npm run build
