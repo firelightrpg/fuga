@@ -48,6 +48,13 @@
   let feedbackText = '';
   let feedbackClass = '';
   let userGuess = '';
+  
+  // Timer settings for perform mode
+  let performTimerDuration = 5; // seconds between challenges
+  let performShowResultsDuration = 2; // seconds to show results before next challenge
+  let performTimerActive = false;
+  let performTimeRemaining = 0;
+  let performTimerInterval = null;
 
   // =======================================================
   // Reactive State (for Fretboard Mode)
@@ -240,6 +247,13 @@
     productionChallengeIntervalSemitones = newIntervalSemitones;
     challengeText = intervalNames[newIntervalSemitones];
     feedbackText = `Perform a ${intervalNames[newIntervalSemitones]}.`;
+    
+    // Auto-start listening and timer in perform mode
+    if (isPerformMode) {
+      setTimeout(() => {
+        startPitchDetection();
+      }, 100);
+    }
   }
 
   function evaluateProductionChallenge() {
@@ -249,10 +263,32 @@
     if (roundedPlayedSemitones === productionChallengeIntervalSemitones) {
       feedbackText = `CORRECT! You performed a ${intervalNames[productionChallengeIntervalSemitones]}.`;
       feedbackClass = 'correct';
+      
+      // Stop the timer and show results briefly before next challenge
+      stopPerformTimer();
+      setTimeout(() => {
+        if (isPerformMode) {
+          startNewProductionChallenge();
+          startPerformTimer();
+        }
+      }, performShowResultsDuration * 1000);
     } else {
       const playedIntervalName = intervalNames[roundedPlayedSemitones] || `an unknown interval`;
-      feedbackText = `WRONG. You performed ${playedIntervalName}. The challenge was a ${intervalNames[productionChallengeIntervalSemitones]}.`;
+      feedbackText = `WRONG. You performed ${playedIntervalName}. Try again for ${intervalNames[productionChallengeIntervalSemitones]}.`;
       feedbackClass = 'wrong';
+      
+      // Keep the same challenge, reset for another attempt
+      resetProductionChallenge();
+      challengeText = intervalNames[productionChallengeIntervalSemitones];
+      feedbackText = `WRONG. You performed ${playedIntervalName}. Try again for ${intervalNames[productionChallengeIntervalSemitones]}.`;
+      
+      // Restart timer and listening after brief delay
+      setTimeout(() => {
+        if (isPerformMode) {
+          startPitchDetection();
+          startPerformTimer();
+        }
+      }, 1500);
     }
     startButtonText = 'Repeat This Interval';
   }
@@ -264,15 +300,60 @@
     playNote(userMelodyPlayback[1], now + 0.9, 0.8);
   }
 
+  function startPerformTimer() {
+    stopPerformTimer();
+    performTimerActive = true;
+    performTimeRemaining = performTimerDuration;
+    
+    performTimerInterval = setInterval(() => {
+      performTimeRemaining--;
+      if (performTimeRemaining <= 0) {
+        // Timer expired, auto-advance to next challenge
+        handlePerformTimerExpired();
+      }
+    }, 1000);
+  }
+
+  function stopPerformTimer() {
+    performTimerActive = false;
+    if (performTimerInterval) {
+      clearInterval(performTimerInterval);
+      performTimerInterval = null;
+    }
+  }
+
+  function resetPerformTimer() {
+    performTimeRemaining = performTimerDuration;
+  }
+
+  function handlePerformTimerExpired() {
+    // Show brief "time's up" message if no answer given
+    if (userMelodyPlayback.length < 2 && feedbackClass !== 'correct' && feedbackClass !== 'wrong') {
+      feedbackText = "Time's up! Try again.";
+      feedbackClass = 'wrong';
+      
+      // Keep the same challenge, restart timer after brief delay
+      setTimeout(() => {
+        resetProductionChallenge();
+        challengeText = intervalNames[productionChallengeIntervalSemitones];
+        feedbackText = `Perform a ${intervalNames[productionChallengeIntervalSemitones]}.`;
+        startPitchDetection();
+        resetPerformTimer();
+      }, 1500);
+    }
+  }
+
   function handleToggleMode() {
     isPerformMode = !isPerformMode;
     if (isPerformMode) {
       modeDescription = 'I will give you an interval. You perform it.';
       toggleButtonText = 'Switch to Guessing Mode';
-      startNewProductionChallenge(); // THIS LINE WAS MISSING
+      startNewProductionChallenge();
+      startPerformTimer();
     } else {
       stopPitchDetection();
       resetProductionChallenge();
+      stopPerformTimer();
       modeDescription = 'I will play an interval. You guess it.';
       toggleButtonText = 'Switch to Perform Mode';
     }
@@ -562,6 +643,20 @@
       </div>
 
       <div class="mode-content" class:active={isPerformMode}>
+          <div style="margin-bottom: 15px;">
+            <label>
+              Challenge timer:
+              <input type="number" bind:value={performTimerDuration} min="3" max="60" step="1" style="width: 60px;" />
+              seconds
+            </label>
+          </div>
+          
+          {#if performTimerActive}
+            <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 10px;">
+              Time: {performTimeRemaining}s
+            </div>
+          {/if}
+          
           <p>Challenge: <span>{challengeText}</span></p>
           <p class="tip"><em>Tip: Perform mode only works with melodic intervals. Sing or play each note separately using staccato (short, detached notes) for best results.</em></p>
           <p>Your Pitch: <span>{pitchText}</span></p>
@@ -571,10 +666,7 @@
           {#if isListening}
             <button on:click={stopPitchDetection}>Stop Listening</button>
           {/if}
-          {#if !isListening && userMelodyPlayback.length > 0}
-            <button on:click={startNewProductionChallenge}>Next Interval</button>
-          {/if}
-          {#if !isListening && userMelodyPlayback.length === 2}
+          {#if !performTimerActive && !isListening && userMelodyPlayback.length === 2}
             <button on:click={playUserPlayedInterval}>Play My Interval</button>
           {/if}
       </div>
