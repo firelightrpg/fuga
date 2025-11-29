@@ -8,6 +8,7 @@
   // =======================================================
   let appMode = 'interval'; // 'interval' or 'fretboard'
   let darkMode = false;
+  let showReadme = false;
 
   // =======================================================
   // Musical Constants
@@ -638,6 +639,15 @@
 <main class:dark-mode={darkMode}>
   <div class="header">
     <h1>Fuga - Ear Trainer</h1>
+    <a
+      href="https://github.com/firelightrpg/fuga/blob/main/README.md"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="readme-link"
+      aria-label="View README on GitHub"
+    >
+      📖
+    </a>
     <button class="dark-mode-toggle" on:click={() => (darkMode = !darkMode)}>
       {darkMode ? '☀️' : '🌙'}
     </button>
@@ -838,6 +848,16 @@
     align-items: center;
     gap: 20px;
     margin-bottom: 1rem;
+  }
+
+  .readme-link {
+    font-size: 1.5em;
+    text-decoration: none;
+    transition: transform 0.2s;
+  }
+
+  .readme-link:hover {
+    transform: scale(1.1);
   }
 
   .dark-mode-toggle {
