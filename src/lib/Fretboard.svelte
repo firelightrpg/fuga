@@ -1,13 +1,19 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
+  
   export let fretCount = 12;
+  export let answerDots = []; // Array of {string: 0-5, fret: 0-12} for showing correct answers
+  export let challengeDot = null; // {string: 0-5, fret: 0-12} for identify-note mode
+
+  const dispatch = createEventDispatcher();
 
   const strings = [
-    { name: 'e', openNote: 'E2' },
-    { name: 'B', openNote: 'B2' },
-    { name: 'G', openNote: 'G2' },
-    { name: 'D', openNote: 'D3' },
-    { name: 'A', openNote: 'A3' },
-    { name: 'E', openNote: 'E4' }
+    { name: 'e', openNote: 'E', octave: 4 },
+    { name: 'B', openNote: 'B', octave: 3 },
+    { name: 'G', openNote: 'G', octave: 3 },
+    { name: 'D', openNote: 'D', octave: 3 },
+    { name: 'A', openNote: 'A', octave: 2 },
+    { name: 'E', openNote: 'E', octave: 2 }
   ];
 
   // --- SVG Dimensions ---
@@ -16,15 +22,30 @@
   const nutWidth = 15;
   const fretWireWidth = 3;
   const stringSpacing = (viewboxHeight - 20) / (strings.length - 1);
-  const scaleLength = viewboxWidth - nutWidth - 10; // Reserve space at the end
+  const scaleLength = viewboxWidth - nutWidth - 10;
 
   // --- Fret Position Calculation ---
-  // Position each fret proportionally across the scale length
   const fretPositions = Array.from({ length: fretCount + 1 }, (_, i) => {
-    if (i === 0) return nutWidth; // Position of the nut itself
-    // Linear distribution for visual purposes
+    if (i === 0) return nutWidth;
     return nutWidth + (scaleLength * i) / fretCount;
-  });  const inlayFrets = [3, 5, 7, 9];
+  });
+
+  const inlayFrets = [3, 5, 7, 9];
+
+  function handleFretClick(stringIndex, fret) {
+    dispatch('fretSelected', { string: stringIndex, fret });
+  }
+
+  function getFretCenter(fret) {
+    if (fret === 0) {
+      return nutWidth / 2;
+    }
+    return (fretPositions[fret] + fretPositions[fret - 1]) / 2;
+  }
+
+  function getStringY(stringIndex) {
+    return 10 + stringIndex * stringSpacing;
+  }
 </script>
 
 <svg viewBox={`0 0 ${viewboxWidth} ${viewboxHeight}`} preserveAspectRatio="xMidYMid meet" aria-label="Guitar Fretboard">
@@ -72,14 +93,53 @@
   {/if}
 
   <!-- Strings -->
-  {#each strings as string, i}
+  {#each strings as string, stringIdx}
     <line
       x1={nutWidth}
-      y1={10 + i * stringSpacing}
+      y1={getStringY(stringIdx)}
       x2={viewboxWidth}
-      y2={10 + i * stringSpacing}
+      y2={getStringY(stringIdx)}
       stroke="#ddd"
-      stroke-width={1 + i * 0.5}
+      stroke-width={1 + stringIdx * 0.5}
+    />
+  {/each}
+
+  <!-- Clickable Fret Areas -->
+  {#each strings as _, stringIdx}
+    {#each Array(fretCount + 1) as _, fret}
+      <rect
+        x={fret === 0 ? 0 : fretPositions[fret - 1]}
+        y={getStringY(stringIdx) - stringSpacing / 2}
+        width={fret === 0 ? nutWidth : (fretPositions[fret] - fretPositions[fret - 1])}
+        height={stringSpacing}
+        fill="transparent"
+        style="cursor: pointer;"
+        on:click={() => handleFretClick(stringIdx, fret)}
+      />
+    {/each}
+  {/each}
+
+  <!-- Challenge Dot (for identify-note mode) -->
+  {#if challengeDot}
+    <circle
+      cx={getFretCenter(challengeDot.fret)}
+      cy={getStringY(challengeDot.string)}
+      r="12"
+      fill="#FF6B6B"
+      stroke="#fff"
+      stroke-width="2"
+    />
+  {/if}
+
+  <!-- Answer Dots (for find-note mode - show all positions) -->
+  {#each answerDots as dot}
+    <circle
+      cx={getFretCenter(dot.fret)}
+      cy={getStringY(dot.string)}
+      r="10"
+      fill="#51CF66"
+      stroke="#fff"
+      stroke-width="2"
     />
   {/each}
 </svg>

@@ -15,6 +15,17 @@
   const C4_FREQ = A4_FREQ * Math.pow(2, -9/12);
   const SEMITONE_RATIO = Math.pow(2, 1/12);
 
+  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  
+  const GUITAR_STRINGS = [
+    { name: 'e', openNote: 'E', octave: 4 },
+    { name: 'B', openNote: 'B', octave: 3 },
+    { name: 'G', openNote: 'G', octave: 3 },
+    { name: 'D', openNote: 'D', octave: 3 },
+    { name: 'A', openNote: 'A', octave: 2 },
+    { name: 'E', openNote: 'E', octave: 2 }
+  ];
+
   const orderedIntervals = [
       {semitones: 1, name: "Minor 2nd"}, {semitones: 2, name: "Major 2nd"},
       {semitones: 3, name: "Minor 3rd"}, {semitones: 4, name: "Major 3rd"},
@@ -44,7 +55,10 @@
   let fretboardChallengeMode = 'find-note'; // 'find-note' or 'identify-note'
   let fretboardChallengeNote = '';
   let fretboardChallengePosition = null; // { string: number, fret: number }
+  let fretboardAnswerDots = []; // Array of {string, fret} showing all positions of a note
+  let fretboardUserGuess = ''; // User's note guess in identify-note mode
   let fretboardFeedback = '';
+  let fretboardFeedbackClass = '';
   
   let startButtonText = 'Start Listening';
 
@@ -303,14 +317,105 @@
   // =======================================================
   // Fretboard Mode Functions
   // =======================================================
+  
+  // Get the semitone offset from C for a given note name
+  function getNoteIndex(noteName) {
+    return NOTE_NAMES.indexOf(noteName);
+  }
+
+  // Calculate all fret positions where a given note can be played
+  function getNoteFretPositions(noteName, maxFret = 12) {
+    const positions = [];
+    const targetNoteIndex = getNoteIndex(noteName);
+    
+    if (targetNoteIndex === -1) return positions;
+    
+    GUITAR_STRINGS.forEach((string, stringIdx) => {
+      const openNoteIndex = getNoteIndex(string.openNote);
+      for (let fret = 0; fret <= maxFret; fret++) {
+        const fretNoteIndex = (openNoteIndex + fret) % 12;
+        if (fretNoteIndex === targetNoteIndex) {
+          positions.push({ string: stringIdx, fret });
+        }
+      }
+    });
+    
+    return positions;
+  }
+
+  // Get note name at a specific string and fret
+  function getNoteAtPosition(stringIndex, fret) {
+    const string = GUITAR_STRINGS[stringIndex];
+    const openNoteIndex = getNoteIndex(string.openNote);
+    const noteIndex = (openNoteIndex + fret) % 12;
+    return NOTE_NAMES[noteIndex];
+  }
+
+  // Get a random note name
+  function getRandomNote() {
+    return NOTE_NAMES[Math.floor(Math.random() * NOTE_NAMES.length)];
+  }
+
+  // Get a random fret position
+  function getRandomFretPosition(maxFret = 12) {
+    const stringIndex = Math.floor(Math.random() * GUITAR_STRINGS.length);
+    const fret = Math.floor(Math.random() * (maxFret + 1));
+    return { string: stringIndex, fret };
+  }
+
   function startNewFretboardChallenge() {
-    fretboardFeedback = 'New challenge started!';
-    // TODO: Implement fretboard challenge logic
+    fretboardAnswerDots = [];
+    fretboardChallengePosition = null;
+    fretboardUserGuess = '';
+    fretboardFeedback = '';
+    fretboardFeedbackClass = '';
+    
+    if (fretboardChallengeMode === 'find-note') {
+      // Challenge: find all positions of this note
+      fretboardChallengeNote = getRandomNote();
+      fretboardFeedback = `Find all positions of ${fretboardChallengeNote} on the fretboard.`;
+    } else {
+      // Challenge: identify the note at this position
+      fretboardChallengePosition = getRandomFretPosition();
+      fretboardChallengeNote = getNoteAtPosition(
+        fretboardChallengePosition.string,
+        fretboardChallengePosition.fret
+      );
+      fretboardFeedback = 'What note is at the highlighted position?';
+    }
   }
 
   function handleFretboardNoteSelected(event) {
-    // TODO: Implement note selection handling
-    console.log('Fret selected:', event.detail);
+    const { string, fret } = event.detail;
+    
+    if (fretboardChallengeMode === 'find-note') {
+      // User clicked a fret in find-note mode
+      const clickedNote = getNoteAtPosition(string, fret);
+      if (clickedNote === fretboardChallengeNote) {
+        fretboardFeedback = `CORRECT! That's ${fretboardChallengeNote}. Here are all positions:`;
+        fretboardFeedbackClass = 'correct';
+        fretboardAnswerDots = getNoteFretPositions(fretboardChallengeNote);
+      } else {
+        fretboardFeedback = `WRONG. That's ${clickedNote}, not ${fretboardChallengeNote}. Try again!`;
+        fretboardFeedbackClass = 'wrong';
+      }
+    }
+  }
+
+  function handleFretboardGuessSubmit() {
+    if (!fretboardUserGuess) {
+      fretboardFeedback = 'Please select a note from the list.';
+      fretboardFeedbackClass = 'wrong';
+      return;
+    }
+    
+    if (fretboardUserGuess === fretboardChallengeNote) {
+      fretboardFeedback = `CORRECT! That was ${fretboardChallengeNote}.`;
+      fretboardFeedbackClass = 'correct';
+    } else {
+      fretboardFeedback = `WRONG. That was ${fretboardChallengeNote}, not ${fretboardUserGuess}.`;
+      fretboardFeedbackClass = 'wrong';
+    }
   }
 </script>
 
@@ -337,13 +442,12 @@
               <button on:click={handlePlayRandomInterval}>Play Random Interval</button>
           </div>
           <div>
-              <select bind:value={userGuess}>
+              <select bind:value={userGuess} on:change={handleSubmitGuess}>
                   <option value="">-- Select your guess --</option>
                   {#each orderedIntervals as interval}
                     <option value={interval.semitones}>{interval.name}</option>
                   {/each}
               </select>
-              <button on:click={handleSubmitGuess}>Submit Answer</button>
           </div>
       </div>
 
@@ -372,7 +476,7 @@
   {:else if appMode === 'fretboard'}
     <div class="module-container">
       <h2>Fretboard Training</h2>
-      <p>{fretboardFeedback}</p>
+      
       <div class="app-mode-switcher">
         <button class:active={fretboardChallengeMode === 'find-note'} on:click={() => { fretboardChallengeMode = 'find-note'; startNewFretboardChallenge(); }}>
           Find Note
@@ -381,22 +485,30 @@
           Identify Note
         </button>
       </div>
-      <button on:click={startNewFretboardChallenge}>New Fretboard Challenge</button>
+
+      <button on:click={startNewFretboardChallenge}>New Challenge</button>
 
       <div class="fretboard-wrapper">
-        <!--
-          Conceptual props for Fretboard.svelte:
-          - challengeMode: 'find-note' or 'identify-note'
-          - challengeNote: The note name to find (e.g., 'C#')
-          - challengePosition: { string: number, fret: number } to display a dot
-          - on:fretSelected: Event emitted when a user clicks a fret, carrying { string, fret, note }
-        -->
         <Fretboard
-          challengeMode={fretboardChallengeMode}
-          challengeNote={fretboardChallengeNote}
-          challengePosition={fretboardChallengePosition}
+          answerDots={fretboardAnswerDots}
+          challengeDot={fretboardChallengePosition}
           on:fretSelected={handleFretboardNoteSelected}
         />
+      </div>
+
+      {#if fretboardChallengeMode === 'identify-note'}
+        <div style="margin-top: 20px;">
+          <select bind:value={fretboardUserGuess} on:change={handleFretboardGuessSubmit}>
+            <option value="">-- Select note --</option>
+            {#each NOTE_NAMES as note}
+              <option value={note}>{note}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
+
+      <div class="feedback" class:correct={fretboardFeedbackClass === 'correct'} class:wrong={fretboardFeedbackClass === 'wrong'}>
+        {fretboardFeedback}
       </div>
     </div>
   {/if}
