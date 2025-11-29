@@ -37,6 +37,14 @@
   let feedbackText = '';
   let feedbackClass = '';
   let userGuess = '';
+
+  // =======================================================
+  // Reactive State (for Fretboard Mode)
+  // =======================================================
+  let fretboardChallengeMode = 'find-note'; // 'find-note' or 'identify-note'
+  let fretboardChallengeNote = '';
+  let fretboardChallengePosition = null; // { string: number, fret: number }
+  let fretboardFeedback = '';
   
   let startButtonText = 'Start Listening';
 
@@ -44,6 +52,7 @@
   // Game State & Audio Setup
   // =======================================================
   let currentCorrectIntervalSemitones = 0;
+  let productionChallengeIntervalSemitones = 0;
   let currentCorrectIntervalName = '';
   let isPlaying = false;
   let isListening = false;
@@ -61,6 +70,10 @@
   const REQUIRED_CONFIDENCE = 5; 
   const CLARITY_THRESHOLD = 0.9;
   const PITCH_WINDOW_SEMITONES = 0.5;
+
+  const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const stringNotes = [{ string: 1, note: 'E', octave: 4 }, { string: 2, note: 'B', octave: 3 }, { string: 3, note: 'G', octave: 3 }, { string: 4, note: 'D', octave: 3 }, { string: 5, note: 'A', octave: 2 }, { string: 6, note: 'E', octave: 2 }];
+
 
   onMount(() => {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -286,6 +299,19 @@
       feedbackClass = 'wrong';
     }
   }
+
+  // =======================================================
+  // Fretboard Mode Functions
+  // =======================================================
+  function startNewFretboardChallenge() {
+    fretboardFeedback = 'New challenge started!';
+    // TODO: Implement fretboard challenge logic
+  }
+
+  function handleFretboardNoteSelected(event) {
+    // TODO: Implement note selection handling
+    console.log('Fret selected:', event.detail);
+  }
 </script>
 
 <main>
@@ -323,6 +349,7 @@
 
       <div class="mode-content" class:active={isPerformMode}>
           <p>Challenge: <span>{challengeText}</span></p>
+          <p class="tip"><em>Tip: Perform mode only works with melodic intervals. Sing or play each note separately using staccato (short, detached notes) for best results.</em></p>
           <p>Your Pitch: <span>{pitchText}</span></p>
           {#if !isListening}
             <button on:click={startPitchDetection}>{startButtonText}</button>
@@ -345,8 +372,31 @@
   {:else if appMode === 'fretboard'}
     <div class="module-container">
       <h2>Fretboard Training</h2>
+      <p>{fretboardFeedback}</p>
+      <div class="app-mode-switcher">
+        <button class:active={fretboardChallengeMode === 'find-note'} on:click={() => { fretboardChallengeMode = 'find-note'; startNewFretboardChallenge(); }}>
+          Find Note
+        </button>
+        <button class:active={fretboardChallengeMode === 'identify-note'} on:click={() => { fretboardChallengeMode = 'identify-note'; startNewFretboardChallenge(); }}>
+          Identify Note
+        </button>
+      </div>
+      <button on:click={startNewFretboardChallenge}>New Fretboard Challenge</button>
+
       <div class="fretboard-wrapper">
-        <Fretboard />
+        <!--
+          Conceptual props for Fretboard.svelte:
+          - challengeMode: 'find-note' or 'identify-note'
+          - challengeNote: The note name to find (e.g., 'C#')
+          - challengePosition: { string: number, fret: number } to display a dot
+          - on:fretSelected: Event emitted when a user clicks a fret, carrying { string, fret, note }
+        -->
+        <Fretboard
+          challengeMode={fretboardChallengeMode}
+          challengeNote={fretboardChallengeNote}
+          challengePosition={fretboardChallengePosition}
+          on:fretSelected={handleFretboardNoteSelected}
+        />
       </div>
     </div>
   {/if}

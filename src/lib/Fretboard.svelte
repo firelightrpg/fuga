@@ -16,17 +16,15 @@
   const nutWidth = 15;
   const fretWireWidth = 3;
   const stringSpacing = (viewboxHeight - 20) / (strings.length - 1);
-  const scaleLength = viewboxWidth - nutWidth; // The length available for frets
+  const scaleLength = viewboxWidth - nutWidth - 10; // Reserve space at the end
 
-  // --- Correct Fret Position Calculation ---
-  // The distance from the nut to fret 'n' is: scaleLength * (1 - 2^(-n/12))
+  // --- Fret Position Calculation ---
+  // Position each fret proportionally across the scale length
   const fretPositions = Array.from({ length: fretCount + 1 }, (_, i) => {
     if (i === 0) return nutWidth; // Position of the nut itself
-    // Calculate the position of the fret wire
-    return nutWidth + scaleLength * (1 - Math.pow(2, -i / 12.0));
-  });
-
-  const inlayFrets = [3, 5, 7, 9];
+    // Linear distribution for visual purposes
+    return nutWidth + (scaleLength * i) / fretCount;
+  });  const inlayFrets = [3, 5, 7, 9];
 </script>
 
 <svg viewBox={`0 0 ${viewboxWidth} ${viewboxHeight}`} preserveAspectRatio="xMidYMid meet" aria-label="Guitar Fretboard">

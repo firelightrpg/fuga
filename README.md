@@ -2,6 +2,18 @@
 
 This template should help get you started developing with Svelte in Vite.
 
+## Getting Started
+
+Run the development server:
+
+```sh
+npm run dev
+```
+
+This starts the Vite development server with hot module replacement. Open your browser to the URL shown in the terminal (typically http://localhost:5173).
+
+To debug, use your browser's DevTools (F12) or set up VS Code debugging with a `.vscode/launch.json` configuration.
+
 ## Recommended IDE Setup
 
 [VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
